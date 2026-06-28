@@ -4,6 +4,7 @@ import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import org.bukkit.*;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -11,7 +12,9 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockDataMeta;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 
 public class EndermanController extends MobController<Enderman> {
     private int teleportRange;
@@ -58,7 +61,7 @@ public class EndermanController extends MobController<Enderman> {
             return;
 
         World world = player.getWorld();
-        Location teleportLocation = world.getHighestBlockAt(result.getHitBlock().getLocation()).getLocation().add(0.5, 1, 0.5);
+        Location teleportLocation = result.getHitBlock().getLocation().add(-.5, 1.5, -.5);
         entity.teleport(teleportLocation);
         world.playSound(entity, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
     }

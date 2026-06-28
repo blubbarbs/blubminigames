@@ -207,7 +207,7 @@ public abstract class Controller<T extends Entity> implements Listener {
         newX -= event.getInput().isLeft() ? 1 : 0;
         float oldX = player.getSidewaysMovement();
         float newZ = event.getInput().isForward() ? 1 : 0;
-        newZ -= event.getInput().isForward() ? 1 : 0;
+        newZ -= event.getInput().isBackward() ? 1 : 0;
         float oldZ = player.getForwardsMovement();
 
         if (newX != oldX || newZ != oldZ)

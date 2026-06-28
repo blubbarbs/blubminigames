@@ -311,7 +311,7 @@ public class MobController<T extends Mob> extends Controller<T> {
 
     @EventHandler
     public void onPlayerShootProjectile(PlayerLaunchProjectileEvent event) {
-        if (event.getProjectile() != player)
+        if (event.getProjectile().getShooter() != player)
             return;
 
         Location newLocation = entity.getEyeLocation();
