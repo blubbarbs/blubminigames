@@ -9,9 +9,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -319,5 +321,14 @@ public class MobController<T extends Mob> extends Controller<T> {
 
         event.getProjectile().setShooter(entity);
         event.getProjectile().teleport(newLocation);
+    }
+
+    @EventHandler
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (event.getDamager() != player)
+            return;
+
+        entity.attack(event.getEntity());
+        event.setCancelled(true);
     }
 }

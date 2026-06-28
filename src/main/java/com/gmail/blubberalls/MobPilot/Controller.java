@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -122,7 +123,7 @@ public abstract class Controller<T extends Entity> implements Listener {
             isUsingItem = false;
         }
 
-        if (entity.isDead())
+        if (entity.isDead() || entity.getPassengers().isEmpty())
             removePilot();
     }
 
