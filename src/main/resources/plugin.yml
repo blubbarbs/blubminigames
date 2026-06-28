@@ -1,0 +1,9 @@
+name: BlubMinigames
+prefix: BlubMinigames
+version: '${version}'
+
+main: com.gmail.blubberalls.minigames.BlubMinigames
+api-version: '26.2'
+load: POSTWORLD
+
+authors: [ Blubberalls ]
