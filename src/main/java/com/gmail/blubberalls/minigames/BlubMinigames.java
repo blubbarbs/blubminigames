@@ -48,6 +48,9 @@ public class BlubMinigames extends JavaPlugin implements Listener {
         else if (event.getEntity() instanceof Enderman enderman) {
             controller = new EndermanController(enderman);
         }
+        else if (event.getEntity() instanceof AbstractCubeMob cube) {
+            controller = new CubeController(cube);
+        }
         else if (event.getEntity() instanceof Mob mob){
             controller = new MobController<>(mob);
         }

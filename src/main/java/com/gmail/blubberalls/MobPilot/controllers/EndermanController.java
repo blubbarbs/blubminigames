@@ -15,7 +15,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockDataMeta;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
-import org.bukkit.util.Vector;
+
+import java.util.HashMap;
 
 public class EndermanController extends MobController<Enderman> {
     private int teleportRange;
@@ -99,8 +100,11 @@ public class EndermanController extends MobController<Enderman> {
             stack.setItemMeta(meta);
         }
 
-        event.getPlayer().getInventory().addItem(stack);
-        event.getBlock().setType(Material.AIR);
+        HashMap<Integer, ItemStack> result = player.getInventory().addItem(stack);
+
+        if (result.isEmpty())
+            event.getBlock().setType(Material.AIR);
+
         event.setCancelled(true);
     }
 
@@ -116,9 +120,10 @@ public class EndermanController extends MobController<Enderman> {
 
             ItemStack newStack = event.getEquipmentChanges().get(slot).newItem();
 
-            if (newStack.getType().isBlock() && newStack.getItemMeta() != null && newStack.getItemMeta() instanceof BlockDataMeta meta) {
+            if (!newStack.getType().isBlock())
+                entity.setCarriedBlock(null);
+            else if (newStack.getItemMeta() != null && newStack.getItemMeta() instanceof BlockDataMeta meta)
                 entity.setCarriedBlock(meta.getBlockData(newStack.getType()));
-            }
             else
                 entity.setCarriedBlock(newStack.getType().createBlockData());
         }

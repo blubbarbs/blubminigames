@@ -6,7 +6,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -15,6 +14,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
+import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -26,7 +26,6 @@ import java.util.Collection;
 public abstract class Controller<T extends Entity> implements Listener {
     public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
                                                               999999, 1, true, false);
-
     private int tickSchedulerID;
     private boolean isUsingItem = false;
     private double scale = 0;
@@ -162,6 +161,12 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     @EventHandler
+    public void onEntityTargetLivingEntity(EntityTargetLivingEntityEvent event) {
+        if (event.getEntity() == entity)
+            event.setCancelled(true);
+    }
+
+    @EventHandler
     public void onDismountEntity(EntityDismountEvent event) {
         if (event.getEntity() != player)
             return;
@@ -201,7 +206,7 @@ public abstract class Controller<T extends Entity> implements Listener {
             onStopJump();
         else if (event.getInput().isSneak() && !player.getCurrentInput().isSneak())
             onStartSneak();
-        else if (event.getInput().isSneak() && player.getCurrentInput().isSneak())
+        else if (!event.getInput().isSneak() && player.getCurrentInput().isSneak())
             onStopSneak();
 
         float newX = event.getInput().isRight() ? 1 : 0;
@@ -212,7 +217,7 @@ public abstract class Controller<T extends Entity> implements Listener {
         float oldZ = player.getForwardsMovement();
 
         if (newX != oldX || newZ != oldZ)
-            onMove(newX, newZ);
+            onMove(newZ, newX);
     }
 
     @EventHandler
@@ -249,6 +254,14 @@ public abstract class Controller<T extends Entity> implements Listener {
 
     @EventHandler
     public void onPlayerBreakBlock(BlockBreakEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerPickupItem(PlayerAttemptPickupItemEvent event) {
         if (event.getPlayer() != player)
             return;
 

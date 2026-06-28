@@ -1,14 +1,8 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
-import io.papermc.paper.event.player.PlayerArmSwingEvent;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.PlayerAnimationEvent;
-import org.bukkit.event.player.PlayerAnimationType;
-import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
 public class ZombieController extends MobController<Zombie> {
