@@ -5,6 +5,7 @@ import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import org.bukkit.*;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -61,7 +62,23 @@ public class EndermanController extends MobController<Enderman> {
             return;
 
         World world = player.getWorld();
-        Location teleportLocation = result.getHitBlock().getLocation().add(-.5, 1.5, -.5);
+        Location teleportLocation;
+        BoundingBox bbox = entity.getBoundingBox();
+        bbox.shift(result.getHitPosition().subtract(bbox.getCenter()));
+
+        if (world.hasCollisionsIn(bbox)) {
+            Block block = result.getHitBlock();
+
+            while (block.isCollidable()) {
+                block = block.getRelative(BlockFace.UP);
+            }
+
+            teleportLocation = block.getLocation().setRotation(player.getEyeLocation().getRotation());
+        }
+        else {
+            teleportLocation = result.getHitPosition().toLocation(world, player.getYaw(), player.getPitch());
+        }
+
         entity.teleport(teleportLocation);
         world.playSound(entity, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
     }
