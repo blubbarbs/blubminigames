@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.craftbukkit.entity.CraftLivingEntity;
+import org.bukkit.craftbukkit.entity.CraftWarden;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Warden;
 import org.bukkit.event.EventHandler;
@@ -54,6 +55,8 @@ public class WardenController extends MobController<Warden> {
     }
 
     public void launchSonicBoom() {
+        CraftWarden craftWarden = (CraftWarden) entity;
+
         Location source = entity.getLocation().add(0, 1.5, 0);
         Location destination = player.getEyeLocation().add(player.getEyeLocation().getDirection().normalize().multiply(25));
 
@@ -78,13 +81,13 @@ public class WardenController extends MobController<Warden> {
             CraftLivingEntity entityCB = (CraftLivingEntity) entity;
             ServerLevel nmsWorld = (ServerLevel) entityCB.getHandle().level();
 
-            boolean hitSuccess = entityCB.getHandle().hurtServer(nmsWorld, nmsWorld.damageSources().sonicBoom(entityCB.getHandle()), 10.0f);
+            boolean hitSuccess = entityCB.getHandle().hurtServer(nmsWorld, nmsWorld.damageSources().sonicBoom(craftWarden.getHandle()), 10.0f);
 
             if (hitSuccess) {
                 double knockbackY = .5 * (1.0 - entity.getAttribute(Attribute.KNOCKBACK_RESISTANCE).getValue());
                 double knockbackXZ = 2.5 * (1.0 - entity.getAttribute(Attribute.KNOCKBACK_RESISTANCE).getValue());
 
-                entityCB.getHandle().push(normalized.getX() * knockbackXZ, normalized.getY() * knockbackY, normalized.getZ() * knockbackXZ, entityCB.getHandle());
+                entityCB.getHandle().push(normalized.getX() * knockbackXZ, normalized.getY() * knockbackY, normalized.getZ() * knockbackXZ, craftWarden.getHandle());
             }
         }
 
