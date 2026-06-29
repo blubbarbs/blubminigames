@@ -2,10 +2,13 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
 import com.gmail.blubberalls.MobPilot.Controller;
+import com.gmail.blubberalls.MobPilot.nms.InactiveBrainWrapper;
 import com.gmail.blubberalls.MobPilot.nms.InactiveGoalSelectorWrapper;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlWrapper;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
+import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.Arrow;
@@ -23,6 +26,7 @@ public class MobController<T extends Mob> extends Controller<T> {
     private static final Field moveControllerField;
     private static final Field goalSelectorField;
     private static final Field targetSelectorField;
+    private static final Field brainField;
 
     static {
         try {
@@ -32,18 +36,22 @@ public class MobController<T extends Mob> extends Controller<T> {
             goalSelectorField.setAccessible(true);
             targetSelectorField = net.minecraft.world.entity.Mob.class.getDeclaredField("targetSelector");
             targetSelectorField.setAccessible(true);
+            brainField = net.minecraft.world.entity.LivingEntity.class.getDeclaredField("brain");
+            brainField.setAccessible(true);
         }
         catch (Exception e) {
             throw new ExceptionInInitializerError(e);
         }
     }
 
-    protected MoveControlWrapper nmsMoveControl = null;
+    protected MoveControlWrapper nmsMoveControl;
     protected InactiveGoalSelectorWrapper nmsGoalSelector = null;
     protected InactiveGoalSelectorWrapper nmsTargetSelector = null;
+    protected InactiveBrainWrapper<?> nmsBrain = null;
 
     public MobController(T mob, double scale) {
         super(mob, scale);
+        nmsMoveControl = new MoveControlWrapper(this);
     }
 
     public MobController(T mob) {
@@ -54,6 +62,9 @@ public class MobController<T extends Mob> extends Controller<T> {
     public void setPilot(Player player) {
         if (this.player != null)
             return;
+
+        // TODO
+        // Try to add attack cool down via attributes
 
         super.setPilot(player);
 
@@ -72,13 +83,15 @@ public class MobController<T extends Mob> extends Controller<T> {
             GoalSelector goalSelector = (GoalSelector) goalSelectorField.get(craftMob.getHandle());
             GoalSelector targetSelector = (GoalSelector) targetSelectorField.get(craftMob.getHandle());
 
-            nmsMoveControl = new MoveControlWrapper(this);
             nmsTargetSelector = new InactiveGoalSelectorWrapper(this, targetSelector);
             nmsGoalSelector = new InactiveGoalSelectorWrapper(this, goalSelector);
+            nmsBrain = new InactiveBrainWrapper<>(craftMob.getHandle().getBrain());
 
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl);
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector);
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector);
+            brainField.set(craftMob.getHandle(), nmsBrain);
+
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -95,6 +108,7 @@ public class MobController<T extends Mob> extends Controller<T> {
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl.getWrapped());
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector.getWrapped());
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector.getWrapped());
+            brainField.set(craftMob.getHandle(), nmsBrain.getWrapped());
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -117,7 +131,7 @@ public class MobController<T extends Mob> extends Controller<T> {
     }
 
     @Override
-    protected void onSwing() {
+    protected void doSwing() {
         entity.swingMainHand();
     }
 

@@ -10,22 +10,10 @@ public class ZombieController extends MobController<Zombie> {
         super(mob);
     }
 
-    @EventHandler
-    public void onPlayerLeftSwing(PlayerInteractEvent event) {
-        if (event.getPlayer() != player || !event.getAction().isLeftClick())
-            return;
-
-        entity.swingMainHand();
+    @Override
+    public void doSwing() {
         entity.swingOffHand();
-    }
-
-    @EventHandler
-    public void onPlayerAttack(EntityDamageByEntityEvent event) {
-        if (event.getDamager() != player)
-            return;
-
         entity.swingMainHand();
-        entity.swingOffHand();
     }
 
     @Override

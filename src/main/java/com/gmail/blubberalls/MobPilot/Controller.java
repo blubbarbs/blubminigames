@@ -16,7 +16,6 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerInputEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -146,7 +145,7 @@ public abstract class Controller<T extends Entity> implements Listener {
 
     protected void onStopSprint() {}
 
-    protected void onSwing() {}
+    protected void doSwing() {}
 
     @EventHandler
     public void onEntityTarget(EntityTargetEvent event) {
@@ -221,19 +220,11 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     @EventHandler
-    public void onPlayerLeftSwing(PlayerInteractEvent event) {
-        if (event.getPlayer() != player || !event.getAction().isLeftClick())
-            return;
-
-        onSwing();
-    }
-
-    @EventHandler
     public void onPlayerAttack(EntityDamageByEntityEvent event) {
         if (event.getDamager() != player)
             return;
 
-        onSwing();
+        doSwing();
     }
 
     @EventHandler

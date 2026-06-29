@@ -118,6 +118,24 @@ public class MoveControlWrapper extends MoveControl<Mob> {
         wrapped.setWait();
     }
 
+    public void setSpeedModifier(double speedModifier) {
+        this.speedModifier = speedModifier;
+    }
+
+    public void setOperation(MoveControlOperation operation) {
+        try {
+            switch(operation) {
+                case STRAFE -> operationField.set(wrapped, Operation.STRAFE);
+                case JUMP -> operationField.set(wrapped, Operation.JUMPING);
+                case WAIT -> operationField.set(wrapped, Operation.WAIT);
+                case MOVE_TO -> operationField.set(wrapped, Operation.MOVE_TO);
+            }
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public void tick() {
         controller.onMoveControllerPreTick();

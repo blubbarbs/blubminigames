@@ -7,8 +7,7 @@ public class CreeperController extends MobController<Creeper> {
     public CreeperController(Creeper mob) {
         super(mob);
     }
-
-
+    
     @Override
     public void onStartSneak() {
         entity.ignite(player);
