@@ -1,19 +1,15 @@
-package com.gmail.blubberalls.MobPilot.controllers;
+package com.gmail.blubberalls.MobPilot;
 
 import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
-import com.gmail.blubberalls.MobPilot.Controller;
 import com.gmail.blubberalls.MobPilot.nms.InactiveBrainWrapper;
 import com.gmail.blubberalls.MobPilot.nms.InactiveGoalSelectorWrapper;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlWrapper;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
-import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.craftbukkit.entity.CraftMob;
-import org.bukkit.entity.Arrow;
-import org.bukkit.entity.Mob;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
@@ -49,13 +45,17 @@ public class MobController<T extends Mob> extends Controller<T> {
     protected InactiveGoalSelectorWrapper nmsTargetSelector = null;
     protected InactiveBrainWrapper<?> nmsBrain = null;
 
-    public MobController(T mob, double scale) {
-        super(mob, scale);
+    public MobController(T mob, double scale, double reach, String... capabilities) {
+        super(mob, scale, reach, capabilities);
         nmsMoveControl = new MoveControlWrapper(this);
     }
 
-    public MobController(T mob) {
-        this(mob, 0.0);
+    public MobController(T mob, double scale, String... capabilities) {
+        this(mob, scale, Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), capabilities);
+    }
+
+    public MobController(T mob, String... capabilities) {
+        this(mob, 0.0, capabilities);
     }
 
     @Override
@@ -131,7 +131,7 @@ public class MobController<T extends Mob> extends Controller<T> {
     }
 
     @Override
-    protected void doSwing() {
+    protected void swingAnimation() {
         entity.swingMainHand();
     }
 
@@ -156,13 +156,21 @@ public class MobController<T extends Mob> extends Controller<T> {
         entity.clearActiveItem();
     }
 
+    @Override
+    public void onLeftClickEntity(Entity entity) {
+        swingAnimation();
+
+        if (capabilities.contains(Capability.ATTACK) && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null)
+            this.entity.attack(entity);
+    }
+
     @EventHandler
     public void onEquipmentChange(EntityEquipmentChangedEvent event) {
         if (event.getEntity() == player) {
             for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
                 EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
 
-                if (!entity.canUseEquipmentSlot(slot))
+                if (!entity.canUseEquipmentSlot(slot) || !equipmentSlots.contains(slot))
                     continue;
 
                 if (change.newItem().equals(entity.getEquipment().getItem(slot)))
@@ -175,7 +183,7 @@ public class MobController<T extends Mob> extends Controller<T> {
             for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
                 EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
 
-                if (!player.canUseEquipmentSlot(slot))
+                if (!player.canUseEquipmentSlot(slot) || !equipmentSlots.contains(slot))
                     continue;
 
                 if (change.newItem().equals(player.getInventory().getItem(slot)))
@@ -212,25 +220,5 @@ public class MobController<T extends Mob> extends Controller<T> {
 
         event.getProjectile().setShooter(entity);
         event.getProjectile().teleport(newLocation);
-    }
-
-    @EventHandler
-    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (event.getDamager() != player)
-            return;
-
-        entity.attack(event.getEntity());
-        event.setCancelled(true);
-    }
-
-    @Override
-    @EventHandler
-    public void onPlayerPickupItem(PlayerAttemptPickupItemEvent event) {
-        if (event.getPlayer() != player)
-            return;
-
-        if (!entity.getCanPickupItems() || !entity.canUseEquipmentSlot(event.getItem().getItemStack().getType().getEquipmentSlot()))
-            event.setCancelled(true);
-
     }
 }

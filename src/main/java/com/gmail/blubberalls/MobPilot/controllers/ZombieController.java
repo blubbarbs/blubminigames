@@ -1,17 +1,15 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import org.bukkit.entity.Zombie;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 
 public class ZombieController extends MobController<Zombie> {
     public ZombieController(Zombie mob) {
-        super(mob);
+        super(mob, Capability.ATTACK, Capability.ARMOR, Capability.HAND, Capability.OFFHAND);
     }
 
     @Override
-    public void doSwing() {
+    public void swingAnimation() {
         entity.swingOffHand();
         entity.swingMainHand();
     }

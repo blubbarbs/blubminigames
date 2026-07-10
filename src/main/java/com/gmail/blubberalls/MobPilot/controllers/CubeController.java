@@ -1,7 +1,7 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlOperation;
-import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.AbstractCubeMob;
 
 import java.lang.reflect.Field;
@@ -26,22 +26,26 @@ public class CubeController extends MobController<AbstractCubeMob> {
     }
 
     public CubeController(AbstractCubeMob mob) {
-        super(mob);
+        super(mob, 0.0, 2.0, Capability.ATTACK);
+    }
+
+    private void setJumpDelay(int jumpDelay) {
+        try {
+            jumpDelayField.set(nmsMoveControl.getWrapped(), jumpDelay);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public void onMoveControllerPreTick() {
         try {
+            if (entity.isOnGround() && player.getCurrentInput().isJump())
+                setJumpDelay(0);
+
             cubeMovementControllerYRot.setFloat(nmsMoveControl.getWrapped(), player.getYaw());
             nmsMoveControl.setOperation(MoveControlOperation.MOVE_TO);
-
-            if (player.getCurrentInput().isJump()) {
-                jumpDelayField.set(nmsMoveControl.getWrapped(), 0);
-            }
-            else {
-                jumpDelayField.set(nmsMoveControl.getWrapped(), 2);
-            }
-
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -50,8 +54,6 @@ public class CubeController extends MobController<AbstractCubeMob> {
 
     @Override
     public void onMoveControllerPostTick() {
-        CraftMob mob = (CraftMob) entity;
-
-        mob.getHandle().setZza(1.0f);
+        setJumpDelay(2);
     }
 }

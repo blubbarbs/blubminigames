@@ -3,8 +3,11 @@ package com.gmail.blubberalls.MobPilot;
 import com.destroystokyo.paper.event.entity.EntityPathfindEvent;
 import com.gmail.blubberalls.minigames.BlubMinigames;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -16,32 +19,62 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerInputEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.Collection;
+import java.util.*;
 
 public abstract class Controller<T extends Entity> implements Listener {
-    public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
-                                                              999999, 1, true, false);
-    private int tickSchedulerID;
-    private boolean isUsingItem = false;
-    private double scale = 0;
-    protected Player player = null;
-    protected ItemStack[] playerInventory;
-    protected AttributeModifier[] playerScaleModifiers;
-    protected PotionEffect[] playerPotionEffects;
-    protected double playerScale;
-    protected T entity;
-
-    public Controller(T entity, double scale) {
-        this.entity = entity;
-        this.scale = scale;
+    public static class Capability {
+        public static String ATTACK = "attack";
+        public static String HAND = "hold_equipment_left";
+        public static String OFFHAND = "hold_equipment_right";
+        public static String ARMOR = "armor";
     }
 
-    public Controller(T entity) {
-        this(entity, 0.0f);
+    public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
+                                                              PotionEffect.INFINITE_DURATION, 1, false, false, false);
+    private int tickSchedulerID;
+    private boolean isUsingItem = false;
+    protected Player player = null;
+    protected ItemStack[] playerInventory;
+    protected HashMap<Attribute, Collection<AttributeModifier>> playerAttributeModifiers = new HashMap<>();
+    protected Collection<PotionEffect> playerPotionEffects;
+    protected AttributeModifier scaleModifier;
+    protected AttributeModifier reachModifier;
+    protected Set<String> capabilities = new HashSet<>();
+    protected Set<EquipmentSlot> equipmentSlots = new HashSet<>();
+    protected T entity;
+
+    public Controller(T entity, double scale, double reach, String... capabilities) {
+        this.entity = entity;
+        this.capabilities.addAll(Arrays.stream(capabilities).toList());
+        scaleModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "scale_modifier"), scale - Attribute.SCALE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
+        reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
+
+        if (this.capabilities.contains(Capability.ARMOR)) {
+            equipmentSlots.add(EquipmentSlot.HEAD);
+            equipmentSlots.add(EquipmentSlot.CHEST);
+            equipmentSlots.add(EquipmentSlot.LEGS);
+            equipmentSlots.add(EquipmentSlot.FEET);
+        }
+
+        if (this.capabilities.contains(Capability.HAND))
+            equipmentSlots.add(EquipmentSlot.HAND);
+
+        if (this.capabilities.contains(Capability.OFFHAND))
+            equipmentSlots.add(EquipmentSlot.OFF_HAND);
+    }
+
+    public Controller(T entity, double scale, String... capabilities) {
+        this(entity, scale, Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), capabilities);
+    }
+
+    public Controller(T entity, String... capabilities) {
+        this(entity, 0.0f, capabilities);
     }
 
     public T getEntity() {
@@ -56,29 +89,38 @@ public abstract class Controller<T extends Entity> implements Listener {
         if (this.player != null)
             return;
 
-        Collection<AttributeModifier> scaleModifiers = player.getAttribute(Attribute.SCALE).getModifiers();
-        Collection<PotionEffect> potionEffects = player.getActivePotionEffects();
-
         this.player = player;
-        this.playerInventory = player.getInventory().getContents();
-        this.playerScaleModifiers = scaleModifiers.toArray(new AttributeModifier[scaleModifiers.size()]);
-        this.playerPotionEffects = potionEffects.toArray(new PotionEffect[potionEffects.size()]);
-        this.playerScale = player.getAttribute(Attribute.SCALE).getBaseValue();
 
+        playerInventory = player.getInventory().getContents();
         player.getInventory().clear();
+
+        playerPotionEffects = player.getActivePotionEffects();
         for (PotionEffect effect : playerPotionEffects) {
             player.removePotionEffect(effect.getType());
         }
-        for (AttributeModifier modifier : playerScaleModifiers) {
-            player.getAttribute(Attribute.SCALE).removeModifier(modifier);
+
+        for (Attribute attribute : Registry.ATTRIBUTE) {
+            if (player.getAttribute(attribute) == null)
+                continue;
+
+            Collection<AttributeModifier> modifiers = player.getAttribute(attribute).getModifiers();
+
+            if (modifiers.isEmpty())
+                continue;
+
+            playerAttributeModifiers.put(attribute, modifiers);
+
+            for (AttributeModifier modifer : modifiers) {
+                player.getAttribute(attribute).removeModifier(modifer);
+            }
         }
 
-        player.getAttribute(Attribute.SCALE).setBaseValue(scale);
-        player.addPotionEffect(INVISIBILITY_EFFECT);
+        applyPlayerEffects();
+
         entity.addPassenger(player);
         Bukkit.getPluginManager().registerEvents(this, BlubMinigames.getInstance());
         tickSchedulerID = Bukkit.getScheduler().scheduleSyncRepeatingTask(BlubMinigames.getInstance(), this::tick, 0L, 1L);
-        MobPilot.registerController(player, this);
+        MobPilot.trackControllerInstance(player, this);
     }
 
     public void removePilot() {
@@ -89,13 +131,32 @@ public abstract class Controller<T extends Entity> implements Listener {
         Bukkit.getScheduler().cancelTask(tickSchedulerID);
 
         player.getInventory().setContents(playerInventory);
-        player.removePotionEffect(PotionEffectType.INVISIBILITY);
-        player.getAttribute(Attribute.SCALE).setBaseValue(playerScale);
-        for (PotionEffect effect : playerPotionEffects) {
-            player.addPotionEffect(effect);
+
+        for (PotionEffect potionEffect : player.getActivePotionEffects()) {
+            player.removePotionEffect(potionEffect.getType());
         }
-        for (AttributeModifier modifier : playerScaleModifiers) {
-            player.getAttribute(Attribute.SCALE).addModifier(modifier);
+        for (PotionEffect potionEffect : playerPotionEffects) {
+            player.addPotionEffect(potionEffect);
+        }
+
+        for (Attribute attribute : Registry.ATTRIBUTE) {
+            if (player.getAttribute(attribute) == null)
+                continue;
+
+            Collection<AttributeModifier> modifiers = player.getAttribute(attribute).getModifiers();
+
+            if (modifiers.isEmpty())
+                continue;
+
+            for (AttributeModifier modifer : modifiers) {
+                player.getAttribute(attribute).removeModifier(modifer);
+            }
+        }
+
+        for (Attribute attribute : playerAttributeModifiers.keySet()) {
+            for (AttributeModifier attributeModifier : playerAttributeModifiers.get(attribute)) {
+                player.getAttribute(attribute).addModifier(attributeModifier);
+            }
         }
 
         if (!entity.isDead())
@@ -103,6 +164,12 @@ public abstract class Controller<T extends Entity> implements Listener {
 
         MobPilot.deregisterController(player);
         player = null;
+    }
+
+    protected void applyPlayerEffects() {
+        player.addPotionEffect(INVISIBILITY_EFFECT);
+        player.getAttribute(Attribute.SCALE).addModifier(scaleModifier);
+        player.getAttribute(Attribute.ENTITY_INTERACTION_RANGE).addModifier(reachModifier);
     }
 
     protected void tick() {
@@ -125,6 +192,8 @@ public abstract class Controller<T extends Entity> implements Listener {
             removePilot();
     }
 
+    protected void swingAnimation() {}
+
     protected void onStartUsingItem() {}
 
     protected void onUsingItem() {}
@@ -145,7 +214,9 @@ public abstract class Controller<T extends Entity> implements Listener {
 
     protected void onStopSprint() {}
 
-    protected void doSwing() {}
+    protected void onLeftClickEntity(Entity entity) {}
+
+    protected void onLeftClickBlock(Block block) {}
 
     @EventHandler
     public void onEntityTarget(EntityTargetEvent event) {
@@ -220,11 +291,21 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     @EventHandler
+    public void onPlayerLeftClick(PlayerInteractEvent event) {
+        if (event.getPlayer() != player || !event.getAction().isLeftClick())
+            return;
+
+        onLeftClickBlock(event.getClickedBlock());
+        event.setCancelled(true);
+    }
+
+    @EventHandler
     public void onPlayerAttack(EntityDamageByEntityEvent event) {
         if (event.getDamager() != player)
             return;
 
-        doSwing();
+        onLeftClickEntity(event.getEntity());
+        event.setCancelled(true);
     }
 
     @EventHandler

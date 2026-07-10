@@ -1,6 +1,6 @@
 package com.gmail.blubberalls.MobPilot.nms;
 
-import com.gmail.blubberalls.MobPilot.controllers.MobController;
+import com.gmail.blubberalls.MobPilot.MobController;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.control.MoveControl;
 import org.bukkit.craftbukkit.entity.CraftMob;

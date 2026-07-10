@@ -1,5 +1,6 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import org.bukkit.craftbukkit.entity.CraftCreeper;
 import org.bukkit.entity.Creeper;
 

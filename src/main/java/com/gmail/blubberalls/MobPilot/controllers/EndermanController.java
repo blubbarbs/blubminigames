@@ -1,6 +1,7 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
+import com.gmail.blubberalls.MobPilot.MobController;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import org.bukkit.*;
@@ -22,7 +23,7 @@ public class EndermanController extends MobController<Enderman> {
     private int teleportRange;
 
     public EndermanController(Enderman mob, int teleportRange) {
-        super(mob, .15);
+        super(mob, .15, Capability.ATTACK);
         this.teleportRange = teleportRange;
     }
 

@@ -1,5 +1,6 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import io.papermc.paper.event.entity.WardenAngerChangeEvent;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.*;
@@ -18,11 +19,11 @@ public class WardenController extends MobController<Warden> {
     private int sonicBoomLaunch = -1;
 
     public WardenController(Warden mob) {
-        super(mob);
+        super(mob, Capability.ATTACK);
     }
 
     @Override
-    public void doSwing() {
+    public void swingAnimation() {
         entity.playEffect(EntityEffect.ENTITY_ATTACK);
     }
 

@@ -1,5 +1,6 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import org.bukkit.EntityEffect;
 import org.bukkit.Material;
@@ -10,11 +11,11 @@ import org.bukkit.inventory.ItemStack;
 
 public class IronGolemController extends MobController<IronGolem> {
     public IronGolemController(IronGolem mob) {
-        super(mob);
+        super(mob, Capability.ATTACK);
     }
 
     @Override
-    public void doSwing() {
+    public void swingAnimation() {
         entity.playEffect(EntityEffect.ENTITY_ATTACK);
     }
 
