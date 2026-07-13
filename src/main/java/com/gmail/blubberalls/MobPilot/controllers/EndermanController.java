@@ -3,7 +3,6 @@ package com.gmail.blubberalls.MobPilot.controllers;
 import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
 import com.gmail.blubberalls.MobPilot.MobController;
 import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.Equippable;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import net.kyori.adventure.text.Component;
 import org.bukkit.*;
@@ -12,28 +11,18 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Enderman;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockDataMeta;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 
 public class EndermanController extends MobController<Enderman> {
-    static ItemStack TELEPORT_ABILITY = ItemStack.of(Material.STICK, 1);
-
-    static {
-        TELEPORT_ABILITY.setData(DataComponentTypes.ITEM_MODEL, Material.ENDER_PEARL.getKey());
-        TELEPORT_ABILITY.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
-        TELEPORT_ABILITY.setData(DataComponentTypes.ITEM_NAME, Component.text("Teleport"));
-    }
-
-
     private int teleportRange;
 
     public EndermanController(Enderman mob, int teleportRange) {
         super(mob, .15, Capability.ATTACK);
         this.teleportRange = teleportRange;
+        registerAbility("Teleport", ItemStack.of(Material.ENDER_PEARL), this::teleport, 1);
     }
 
     public EndermanController(Enderman mob) {
@@ -71,6 +60,7 @@ public class EndermanController extends MobController<Enderman> {
 
     @Override
     protected void initializePlayerEquipment() {
+        super.initializePlayerEquipment();
         if (entity.getCarriedBlock() != null) {
             ItemStack item = ItemStack.of(entity.getCarriedBlock().getMaterial());
             if (item.getItemMeta() instanceof BlockDataMeta meta) {
@@ -79,8 +69,6 @@ public class EndermanController extends MobController<Enderman> {
             }
             player.getInventory().setItem(0, item);
         }
-
-        player.getInventory().setItem(1, TELEPORT_ABILITY);
     }
 
     @Override
@@ -99,6 +87,7 @@ public class EndermanController extends MobController<Enderman> {
         if (event.getPlayer() != player)
             return;
 
+        event.getPlayer().getInventory().setItem(0, null);
         entity.setCarriedBlock(null);
     }
 
@@ -132,16 +121,4 @@ public class EndermanController extends MobController<Enderman> {
 
         event.setCancelled(true);
     }
-
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getPlayer() != player || !event.getAction().isRightClick() || event.getItem() == null)
-            return;
-
-        if (event.getItem().equals(TELEPORT_ABILITY) && event.getPlayer().getCooldown(TELEPORT_ABILITY) == 0) {
-            if (teleport())
-                player.setCooldown(event.getItem(), 15);
-        }
-    }
-
 }

@@ -1,7 +1,10 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.gmail.blubberalls.MobPilot.MobController;
+import com.gmail.blubberalls.minigames.BlubMinigames;
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.event.entity.WardenAngerChangeEvent;
+import net.kyori.adventure.text.Component;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
@@ -10,16 +13,25 @@ import org.bukkit.craftbukkit.entity.CraftWarden;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Warden;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
+import javax.xml.crypto.Data;
 import java.util.HashSet;
 
 public class WardenController extends MobController<Warden> {
-    private int sonicBoomCooldown = 0;
-    private int sonicBoomLaunch = -1;
+    protected int sonicBoomScheduleID = -1;
 
     public WardenController(Warden mob) {
         super(mob, Capability.ATTACK);
+        registerAbility("Sonic Boom", ItemStack.of(Material.ECHO_SHARD), this::launchSonicBoom, 10);
+    }
+
+    @Override
+    protected void onDeinitialize() {
+        super.onDeinitialize();
+        Bukkit.getScheduler().cancelTask(sonicBoomScheduleID);
     }
 
     @Override
@@ -35,27 +47,7 @@ public class WardenController extends MobController<Warden> {
         event.setCancelled(true);
     }
 
-    @Override
-    public void tick() {
-        super.tick();
-
-        if (sonicBoomLaunch > 0) {
-            sonicBoomLaunch--;
-
-            if (sonicBoomLaunch == 0)
-                launchSonicBoom();
-        }
-
-        sonicBoomCooldown = sonicBoomCooldown >= 1 ? sonicBoomCooldown - 1 : 0;
-    }
-
-    @Override
-    public void onStartSneak() {
-        if (sonicBoomCooldown == 0 && sonicBoomLaunch == -1)
-            startSonicBoom();
-    }
-
-    public void launchSonicBoom() {
+    protected void sonicBoomProjectile() {
         CraftWarden craftWarden = (CraftWarden) entity;
 
         Location source = entity.getLocation().add(0, 1.5, 0);
@@ -91,15 +83,15 @@ public class WardenController extends MobController<Warden> {
                 entityCB.getHandle().push(normalized.getX() * knockbackXZ, normalized.getY() * knockbackY, normalized.getZ() * knockbackXZ, craftWarden.getHandle());
             }
         }
-
-        sonicBoomLaunch = -1;
-        sonicBoomCooldown = 60;
     }
 
-    public void startSonicBoom() {
+    protected boolean launchSonicBoom() {
         entity.playEffect(EntityEffect.WARDEN_SONIC_ATTACK);
         entity.getWorld().playSound(entity, Sound.ENTITY_WARDEN_SONIC_CHARGE,3.0f, 3.0f);
-        sonicBoomLaunch = 34;
+        sonicBoomScheduleID = Bukkit.getScheduler().scheduleSyncDelayedTask(BlubMinigames.getInstance(), this::sonicBoomProjectile, 34L);
+        return true;
     }
+
+
 
 }

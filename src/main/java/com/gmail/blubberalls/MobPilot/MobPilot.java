@@ -27,11 +27,12 @@ public class MobPilot implements Listener {
         register(Stray.class, SkeletonController::new);
         register(Bogged.class, SkeletonController::new);
         register(Parched.class, SkeletonController::new);
-        register(Spider.class, (spider) -> new MobController<>(spider, .15, 2, Controller.Capability.ATTACK));
+        register(Spider.class, (spider) -> new MobController<>(spider, .15, Controller.Capability.ATTACK));
         register(Enderman.class, EndermanController::new);
         register(IronGolem.class, IronGolemController::new);
         register(Warden.class, WardenController::new);
         register(Blaze.class, BlazeController::new);
+        register(Shulker.class, ShulkerController::new);
     }
 
     private static <T extends Entity> void register(Class<T> clazz, Function<T, Controller<? super T>> controllerFactory) {

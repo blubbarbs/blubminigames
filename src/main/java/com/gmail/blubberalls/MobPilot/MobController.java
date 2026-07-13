@@ -17,6 +17,7 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -72,6 +73,7 @@ public class MobController<T extends Mob> extends Controller<T> {
 
         CraftMob craftMob = ((CraftMob) entity);
         craftMob.clearActiveItem();
+        craftMob.setTarget(null);
 
         try {
             GoalSelector goalSelector = (GoalSelector) goalSelectorField.get(craftMob.getHandle());
@@ -111,9 +113,10 @@ public class MobController<T extends Mob> extends Controller<T> {
 
     @Override
     protected void initializePlayerEquipment() {
-        if (!capabilities.contains(Capability.HAND)) {
-            ItemStack noAttack = ItemStack.of(Material.BARRIER);
+        if (!capabilities.contains(Capability.ATTACK)) {
+            ItemStack noAttack = ItemStack.of(Material.STICK);
 
+            noAttack.setData(DataComponentTypes.ITEM_MODEL, Material.BARRIER.getKey());
             noAttack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
             noAttack.setData(DataComponentTypes.ITEM_NAME, Component.text("No Attack"));
 
@@ -169,6 +172,8 @@ public class MobController<T extends Mob> extends Controller<T> {
                 player.getInventory().setBoots(boots);
             }
         }
+
+        super.initializePlayerEquipment();
     }
 
     public void onMoveControllerPreTick() {
@@ -210,6 +215,14 @@ public class MobController<T extends Mob> extends Controller<T> {
     public void onStopUsingItem() {
         if (entity.getActiveItemUsedTime() > 0)
             entity.clearActiveItem();
+    }
+
+    @EventHandler
+    public void onMobTarget(EntityTargetEvent event) {
+        if (event.getEntity() != entity)
+            return;
+
+        event.setCancelled(true);
     }
 
     @EventHandler

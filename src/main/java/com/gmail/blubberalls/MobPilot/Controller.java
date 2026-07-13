@@ -1,9 +1,10 @@
 package com.gmail.blubberalls.MobPilot;
 
 import com.gmail.blubberalls.minigames.BlubMinigames;
-import org.bukkit.Bukkit;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.UseCooldown;
+import net.kyori.adventure.text.Component;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Entity;
@@ -24,6 +25,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 public abstract class Controller<T extends Entity> implements Listener {
     public static class Capability {
@@ -34,10 +36,11 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
-                                                              PotionEffect.INFINITE_DURATION, 1, false, false, false);
+                                                        PotionEffect.INFINITE_DURATION, 1, false, false, false);
     private int tickSchedulerID;
     protected ItemStack itemInUse = null;
     protected Player player = null;
+    protected GameMode playerGameMode;
     protected ItemStack[] playerInventory;
     protected HashMap<Attribute, Collection<AttributeModifier>> playerAttributeModifiers = new HashMap<>();
     protected Collection<PotionEffect> playerPotionEffects;
@@ -46,6 +49,8 @@ public abstract class Controller<T extends Entity> implements Listener {
     protected Set<String> capabilities = new HashSet<>();
     protected Set<EquipmentSlot> equipmentSlots = new HashSet<>();
     protected T entity;
+    protected ArrayList<ItemStack> abilities = new  ArrayList<>();
+    protected HashMap<ItemStack, Supplier<Boolean>> abilityRunnables = new HashMap<>();
 
     public Controller(T entity, double scale, double reach, String... capabilities) {
         this.entity = entity;
@@ -114,6 +119,9 @@ public abstract class Controller<T extends Entity> implements Listener {
             }
         }
 
+        playerGameMode = player.getGameMode();
+        player.setGameMode(GameMode.CREATIVE);
+
         applyPlayerEffects();
         initializePlayerEquipment();
 
@@ -161,6 +169,8 @@ public abstract class Controller<T extends Entity> implements Listener {
             }
         }
 
+        player.setGameMode(playerGameMode);
+
         if (!entity.isDead())
             entity.removePassenger(player);
 
@@ -170,7 +180,26 @@ public abstract class Controller<T extends Entity> implements Listener {
         player = null;
     }
 
-    protected void initializePlayerEquipment() {}
+    protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds) {
+        int index = abilities.size() + 1;
+        ItemStack abilityStack = new ItemStack(Material.STICK, 1);
+
+        abilityStack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        abilityStack.setData(DataComponentTypes.ITEM_MODEL, icon.getType().getKey());
+        abilityStack.setData(DataComponentTypes.ITEM_NAME, Component.text(name));
+        abilityStack.setData(DataComponentTypes.USE_COOLDOWN, UseCooldown.useCooldown(cooldownSeconds)
+                .cooldownGroup(new NamespacedKey(BlubMinigames.getInstance(), "" + index)).build());
+
+        abilities.add(abilityStack);
+        abilityRunnables.put(abilityStack, callback);
+    }
+
+    protected void initializePlayerEquipment() {
+        int index = 1;
+        for (ItemStack stack : abilities) {
+            player.getInventory().setItem(index++, stack);
+        }
+    }
 
     protected void applyPlayerEffects() {
         player.addPotionEffect(INVISIBILITY_EFFECT);
@@ -338,6 +367,24 @@ public abstract class Controller<T extends Entity> implements Listener {
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         if (event.getPlayer() != player)
             return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerRightClickAbility(PlayerInteractEvent event) {
+        if (event.getPlayer() != player || !event.getAction().isRightClick() || event.getItem() == null)
+            return;
+
+        if (!abilities.contains(event.getItem()) || player.getCooldown(event.getItem()) > 0)
+            return;
+
+        Supplier<Boolean> callback = abilityRunnables.get(event.getItem());
+        float cooldownSeconds = event.getItem().getData(DataComponentTypes.USE_COOLDOWN).seconds();
+
+        if (callback.get()) {
+            player.setCooldown(event.getItem(), (int) (cooldownSeconds * 20));
+        }
 
         event.setCancelled(true);
     }
