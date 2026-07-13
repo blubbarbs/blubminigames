@@ -2,24 +2,33 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
 import com.gmail.blubberalls.MobPilot.MobController;
-import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.Equippable;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
+import net.kyori.adventure.text.Component;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Enderman;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockDataMeta;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 
-import java.util.HashMap;
-
 public class EndermanController extends MobController<Enderman> {
+    static ItemStack TELEPORT_ABILITY = ItemStack.of(Material.STICK, 1);
+
+    static {
+        TELEPORT_ABILITY.setData(DataComponentTypes.ITEM_MODEL, Material.ENDER_PEARL.getKey());
+        TELEPORT_ABILITY.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        TELEPORT_ABILITY.setData(DataComponentTypes.ITEM_NAME, Component.text("Teleport"));
+    }
+
+
     private int teleportRange;
 
     public EndermanController(Enderman mob, int teleportRange) {
@@ -28,40 +37,13 @@ public class EndermanController extends MobController<Enderman> {
     }
 
     public EndermanController(Enderman mob) {
-        this(mob, 15);
+        this(mob, 30);
     }
 
-    @Override
-    public void setPilot(Player player) {
-        super.setPilot(player);
-
-        if (entity.getCarriedBlock() != null) {
-            ItemStack item = ItemStack.of(entity.getCarriedBlock().getMaterial());
-
-            if (item.getItemMeta() instanceof BlockDataMeta meta) {
-                meta.setBlockData(entity.getCarriedBlock());
-                item.setItemMeta(meta);
-            }
-
-            player.getInventory().setItemInMainHand(item);
-        }
-    }
-
-    @Override
-    protected void onStartSprint() {
-        entity.setScreaming(true);
-    }
-
-    @Override
-    protected void onStopSprint() {
-        entity.setScreaming(false);
-    }
-
-    @Override
-    protected void onStartSneak() {
+    protected boolean teleport() {
         RayTraceResult result = player.rayTraceBlocks(teleportRange);
         if (result == null || result.getHitBlock() == null)
-            return;
+            return false;
 
         World world = player.getWorld();
         Location teleportLocation;
@@ -83,15 +65,46 @@ public class EndermanController extends MobController<Enderman> {
 
         entity.teleport(teleportLocation);
         world.playSound(entity, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
+
+        return true;
+    }
+
+    @Override
+    protected void initializePlayerEquipment() {
+        if (entity.getCarriedBlock() != null) {
+            ItemStack item = ItemStack.of(entity.getCarriedBlock().getMaterial());
+            if (item.getItemMeta() instanceof BlockDataMeta meta) {
+                meta.setBlockData(entity.getCarriedBlock());
+                item.setItemMeta(meta);
+            }
+            player.getInventory().setItem(0, item);
+        }
+
+        player.getInventory().setItem(1, TELEPORT_ABILITY);
+    }
+
+    @Override
+    protected void onStartSprint() {
+        entity.setScreaming(true);
+    }
+
+    @Override
+    protected void onStopSprint() {
+        entity.setScreaming(false);
     }
 
     @EventHandler
     @Override
-    public void onPlayerPlaceBlock(BlockPlaceEvent event) {}
+    public void onPlayerPlaceBlock(BlockPlaceEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        entity.setCarriedBlock(null);
+    }
 
     @EventHandler
     public void onPlayerPickBlock(PlayerPickBlockEvent event) {
-        if (event.getPlayer() != player)
+        if (event.getPlayer() != player || event.getPlayer().getInventory().getItem(0) != null)
             return;
 
         ItemStack stack = ItemStack.of(event.getBlock().getType());
@@ -101,33 +114,15 @@ public class EndermanController extends MobController<Enderman> {
             stack.setItemMeta(meta);
         }
 
-        HashMap<Integer, ItemStack> result = player.getInventory().addItem(stack);
+        player.getInventory().setItem(0, stack);
+        if (stack.getItemMeta() != null && stack.getItemMeta() instanceof BlockDataMeta meta)
+            entity.setCarriedBlock(meta.getBlockData(stack.getType()));
+        else
+            entity.setCarriedBlock(stack.getType().createBlockData());
 
-        if (result.isEmpty())
-            event.getBlock().setType(Material.AIR);
-
+        event.getPlayer().getInventory().setHeldItemSlot(0);
+        event.getBlock().setType(Material.AIR);
         event.setCancelled(true);
-    }
-
-    @EventHandler
-    @Override
-    public void onEquipmentChange(EntityEquipmentChangedEvent event) {
-        if (event.getEntity() != player)
-            return;
-
-        for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
-            if (slot != EquipmentSlot.HAND)
-                continue;
-
-            ItemStack newStack = event.getEquipmentChanges().get(slot).newItem();
-
-            if (!newStack.getType().isBlock())
-                entity.setCarriedBlock(null);
-            else if (newStack.getItemMeta() != null && newStack.getItemMeta() instanceof BlockDataMeta meta)
-                entity.setCarriedBlock(meta.getBlockData(newStack.getType()));
-            else
-                entity.setCarriedBlock(newStack.getType().createBlockData());
-        }
     }
 
     @EventHandler
@@ -136,6 +131,17 @@ public class EndermanController extends MobController<Enderman> {
             return;
 
         event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getPlayer() != player || !event.getAction().isRightClick() || event.getItem() == null)
+            return;
+
+        if (event.getItem().equals(TELEPORT_ABILITY) && event.getPlayer().getCooldown(TELEPORT_ABILITY) == 0) {
+            if (teleport())
+                player.setCooldown(event.getItem(), 15);
+        }
     }
 
 }

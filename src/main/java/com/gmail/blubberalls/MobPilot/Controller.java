@@ -1,13 +1,11 @@
 package com.gmail.blubberalls.MobPilot;
 
-import com.destroystokyo.paper.event.entity.EntityPathfindEvent;
 import com.gmail.blubberalls.minigames.BlubMinigames;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,9 +15,9 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
-import org.bukkit.event.player.PlayerInputEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -38,7 +36,7 @@ public abstract class Controller<T extends Entity> implements Listener {
     public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
                                                               PotionEffect.INFINITE_DURATION, 1, false, false, false);
     private int tickSchedulerID;
-    private boolean isUsingItem = false;
+    protected ItemStack itemInUse = null;
     protected Player player = null;
     protected ItemStack[] playerInventory;
     protected HashMap<Attribute, Collection<AttributeModifier>> playerAttributeModifiers = new HashMap<>();
@@ -93,6 +91,7 @@ public abstract class Controller<T extends Entity> implements Listener {
 
         playerInventory = player.getInventory().getContents();
         player.getInventory().clear();
+        player.getInventory().setHeldItemSlot(0);
 
         playerPotionEffects = player.getActivePotionEffects();
         for (PotionEffect effect : playerPotionEffects) {
@@ -116,11 +115,14 @@ public abstract class Controller<T extends Entity> implements Listener {
         }
 
         applyPlayerEffects();
+        initializePlayerEquipment();
 
         entity.addPassenger(player);
         Bukkit.getPluginManager().registerEvents(this, BlubMinigames.getInstance());
         tickSchedulerID = Bukkit.getScheduler().scheduleSyncRepeatingTask(BlubMinigames.getInstance(), this::tick, 0L, 1L);
         MobPilot.trackControllerInstance(player, this);
+
+        onInitialize();
     }
 
     public void removePilot() {
@@ -162,9 +164,13 @@ public abstract class Controller<T extends Entity> implements Listener {
         if (!entity.isDead())
             entity.removePassenger(player);
 
+        onDeinitialize();
+
         MobPilot.deregisterController(player);
         player = null;
     }
+
+    protected void initializePlayerEquipment() {}
 
     protected void applyPlayerEffects() {
         player.addPotionEffect(INVISIBILITY_EFFECT);
@@ -178,14 +184,14 @@ public abstract class Controller<T extends Entity> implements Listener {
         if (player.hasActiveItem()) {
             if (player.getActiveItemUsedTime() == 0) {
                 onStartUsingItem();
-                isUsingItem = true;
+                itemInUse = player.getActiveItem();
             }
             else
                 onUsingItem();
         }
-        else if (!player.hasActiveItem() && isUsingItem) {
+        else if (!player.hasActiveItem() && itemInUse != null) {
             onStopUsingItem();
-            isUsingItem = false;
+            itemInUse = null;
         }
 
         if (entity.isDead() || entity.getPassengers().isEmpty())
@@ -193,6 +199,10 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     protected void swingAnimation() {}
+
+    protected void onInitialize() {}
+
+    protected void onDeinitialize() {}
 
     protected void onStartUsingItem() {}
 
@@ -213,28 +223,6 @@ public abstract class Controller<T extends Entity> implements Listener {
     protected void onStartSprint() {}
 
     protected void onStopSprint() {}
-
-    protected void onLeftClickEntity(Entity entity) {}
-
-    protected void onLeftClickBlock(Block block) {}
-
-    @EventHandler
-    public void onEntityTarget(EntityTargetEvent event) {
-        if (event.getEntity() == entity)
-            event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onEntityPathfind(EntityPathfindEvent event) {
-        if (event.getEntity() == entity)
-            event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onEntityTargetLivingEntity(EntityTargetLivingEntityEvent event) {
-        if (event.getEntity() == entity)
-            event.setCancelled(true);
-    }
 
     @EventHandler
     public void onDismountEntity(EntityDismountEvent event) {
@@ -291,24 +279,6 @@ public abstract class Controller<T extends Entity> implements Listener {
     }
 
     @EventHandler
-    public void onPlayerLeftClick(PlayerInteractEvent event) {
-        if (event.getPlayer() != player || !event.getAction().isLeftClick())
-            return;
-
-        onLeftClickBlock(event.getClickedBlock());
-        event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onPlayerAttack(EntityDamageByEntityEvent event) {
-        if (event.getDamager() != player)
-            return;
-
-        onLeftClickEntity(event.getEntity());
-        event.setCancelled(true);
-    }
-
-    @EventHandler
     public void onPlayerPlaceBlock(BlockPlaceEvent event) {
         if (event.getPlayer() != player)
             return;
@@ -334,6 +304,38 @@ public abstract class Controller<T extends Entity> implements Listener {
 
     @EventHandler
     public void onPlayerPickupItem(PlayerAttemptPickupItemEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerInventoryClick(InventoryClickEvent event) {
+        if (event.getWhoClicked() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerSwapItems(PlayerSwapHandItemsEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
         if (event.getPlayer() != player)
             return;
 

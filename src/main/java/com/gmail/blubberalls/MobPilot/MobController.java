@@ -4,17 +4,22 @@ import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
 import com.gmail.blubberalls.MobPilot.nms.InactiveBrainWrapper;
 import com.gmail.blubberalls.MobPilot.nms.InactiveGoalSelectorWrapper;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlWrapper;
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
+import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
-import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.lang.reflect.Field;
 
@@ -63,18 +68,7 @@ public class MobController<T extends Mob> extends Controller<T> {
         if (this.player != null)
             return;
 
-        // TODO
-        // Try to add attack cool down via attributes
-
         super.setPilot(player);
-
-        player.getInventory().setHeldItemSlot(0);
-        player.getInventory().setItemInMainHand(entity.getEquipment().getItemInMainHand());
-        player.getInventory().setItemInOffHand(entity.getEquipment().getItemInOffHand());
-        player.getInventory().setHelmet(entity.getEquipment().getHelmet());
-        player.getInventory().setChestplate(entity.getEquipment().getChestplate());
-        player.getInventory().setLeggings(entity.getEquipment().getLeggings());
-        player.getInventory().setBoots(entity.getEquipment().getBoots());
 
         CraftMob craftMob = ((CraftMob) entity);
         craftMob.clearActiveItem();
@@ -115,6 +109,68 @@ public class MobController<T extends Mob> extends Controller<T> {
         }
     }
 
+    @Override
+    protected void initializePlayerEquipment() {
+        if (!capabilities.contains(Capability.HAND)) {
+            ItemStack noAttack = ItemStack.of(Material.BARRIER);
+
+            noAttack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+            noAttack.setData(DataComponentTypes.ITEM_NAME, Component.text("No Attack"));
+
+            player.getInventory().setItem(0, noAttack);
+        }
+        else if (!entity.getEquipment().getItemInMainHand().isEmpty()) {
+            ItemStack hand = entity.getEquipment().getItemInMainHand();
+            ItemMeta meta = hand.getItemMeta();
+            meta.setUnbreakable(true);
+            hand.setItemMeta(meta);
+            player.getInventory().setItem(0, hand);
+        }
+
+        if (capabilities.contains(Capability.OFFHAND) && !entity.getEquipment().getItemInOffHand().isEmpty()) {
+            ItemStack offHand = entity.getEquipment().getItemInOffHand();
+            ItemMeta meta = offHand.getItemMeta();
+            meta.setUnbreakable(true);
+            offHand.setItemMeta(meta);
+            player.getInventory().setItemInOffHand(offHand);
+        }
+
+        if (capabilities.contains(Capability.ARMOR)) {
+            ItemStack helmet = entity.getEquipment().getHelmet();
+            ItemMeta helmetMeta = helmet.getItemMeta();
+            ItemStack chestplate = entity.getEquipment().getChestplate();
+            ItemMeta chestplateMeta = chestplate.getItemMeta();
+            ItemStack leggings = entity.getEquipment().getLeggings();
+            ItemMeta leggingsMeta = leggings.getItemMeta();
+            ItemStack boots = entity.getEquipment().getBoots();
+            ItemMeta bootsMeta = boots.getItemMeta();
+
+            if (!helmet.isEmpty()) {
+                helmetMeta.setUnbreakable(true);
+                helmet.setItemMeta(helmetMeta);
+                player.getInventory().setHelmet(helmet);
+            }
+
+            if (!chestplate.isEmpty()) {
+                chestplateMeta.setUnbreakable(true);
+                chestplate.setItemMeta(chestplateMeta);
+                player.getInventory().setChestplate(chestplate);
+            }
+
+            if (!leggings.isEmpty()) {
+                leggingsMeta.setUnbreakable(true);
+                leggings.setItemMeta(leggingsMeta);
+                player.getInventory().setLeggings(leggings);
+            }
+
+            if (!boots.isEmpty()) {
+                bootsMeta.setUnbreakable(true);
+                boots.setItemMeta(bootsMeta);
+                player.getInventory().setBoots(boots);
+            }
+        }
+    }
+
     public void onMoveControllerPreTick() {
         if (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0)
             nmsMoveControl.strafe(player.getForwardsMovement(), player.getSidewaysMovement());
@@ -137,10 +193,8 @@ public class MobController<T extends Mob> extends Controller<T> {
 
     @Override
     public void onStartUsingItem() {
-        if (!entity.getEquipment().getItem(player.getActiveItemHand()).equals(player.getActiveItem()))
-            return;
-
-        entity.startUsingItem(player.getActiveItemHand());
+        if (player.getActiveItemHand() == EquipmentSlot.OFF_HAND || player.getInventory().getHeldItemSlot() == 0)
+            entity.startUsingItem(player.getActiveItemHand());
     }
 
     @Override
@@ -148,50 +202,41 @@ public class MobController<T extends Mob> extends Controller<T> {
         if (!entity.getEquipment().getItem(player.getActiveItemHand()).equals(player.getActiveItem()))
             return;
 
-        entity.setActiveItemRemainingTime(player.getActiveItemRemainingTime());
+        if (entity.getActiveItemUsedTime() > 0)
+            entity.setActiveItemRemainingTime(player.getActiveItemRemainingTime());
     }
 
     @Override
     public void onStopUsingItem() {
-        entity.clearActiveItem();
+        if (entity.getActiveItemUsedTime() > 0)
+            entity.clearActiveItem();
     }
 
-    @Override
-    public void onLeftClickEntity(Entity entity) {
-        swingAnimation();
+    @EventHandler
+    public void onPlayerAttack(EntityDamageByEntityEvent event) {
+        if (event.getDamager() != player)
+            return;
 
-        if (capabilities.contains(Capability.ATTACK) && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null)
-            this.entity.attack(entity);
+        event.setCancelled(true);
+
+        if (capabilities.contains(Capability.ATTACK) && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null) {
+            swingAnimation();
+            this.entity.attack(event.getEntity());
+        }
     }
 
     @EventHandler
     public void onEquipmentChange(EntityEquipmentChangedEvent event) {
-        if (event.getEntity() == player) {
-            for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
-                EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
+        if (event.getEntity() != entity)
+            return;
 
-                if (!entity.canUseEquipmentSlot(slot) || !equipmentSlots.contains(slot))
-                    continue;
+        for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
+            EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
 
-                if (change.newItem().equals(entity.getEquipment().getItem(slot)))
-                    continue;
-
-                entity.getEquipment().setItem(slot, change.newItem());
-            }
-        }
-        else if (event.getEntity() == entity) {
-            for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
-                EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
-
-                if (!player.canUseEquipmentSlot(slot) || !equipmentSlots.contains(slot))
-                    continue;
-
-                if (change.newItem().equals(player.getInventory().getItem(slot)))
-                    continue;
-
+            if (slot == EquipmentSlot.HAND)
+                player.getInventory().setItem(0, change.newItem());
+            else if (player.canUseEquipmentSlot(slot))
                 player.getInventory().setItem(slot, change.newItem());
-                player.getInventory().addItem(change.oldItem());
-            }
         }
     }
 
@@ -208,6 +253,7 @@ public class MobController<T extends Mob> extends Controller<T> {
         arrow.setCritical(false);
         arrow.setShooter(entity);
         arrow.teleport(newLocation);
+        arrow.setPickupStatus(Arrow.PickupStatus.DISALLOWED);
     }
 
     @EventHandler
