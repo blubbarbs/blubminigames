@@ -8,9 +8,9 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.*;
@@ -177,18 +177,32 @@ public class MobController<T extends Mob> extends Controller<T> {
     }
 
     public void onMoveControllerPreTick() {
-        if (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0)
+        if (!isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0))
             nmsMoveControl.strafe(player.getForwardsMovement(), player.getSidewaysMovement());
         else
             nmsMoveControl.setWait();
-
-        entity.setJumping(player.getCurrentInput().isJump());
     }
 
     public void onMoveControllerPostTick() {
         CraftMob craftMob = ((CraftMob) entity);
-        craftMob.getHandle().setZza(player.getForwardsMovement());
-        craftMob.getHandle().setXxa(player.getSidewaysMovement());
+
+        if (!isImmobile && canStrafe) {
+            craftMob.getHandle().setZza(player.getForwardsMovement());
+            craftMob.getHandle().setXxa(player.getSidewaysMovement());
+        }
+        else {
+            craftMob.getHandle().setZza(0);
+            craftMob.getHandle().setXxa(0);
+        }
+
+        if (!isImmobile && canJump)
+            entity.setJumping(player.getCurrentInput().isJump());
+    }
+
+    @Override
+    public void onStartSneak() {
+        if (entity.getAmbientSound() != null)
+            entity.getWorld().playSound(entity, entity.getAmbientSound(), SoundCategory.NEUTRAL, 1f, 1f);
     }
 
     @Override

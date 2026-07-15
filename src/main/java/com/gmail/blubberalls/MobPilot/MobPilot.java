@@ -33,6 +33,8 @@ public class MobPilot implements Listener {
         register(Warden.class, WardenController::new);
         register(Blaze.class, BlazeController::new);
         register(Shulker.class, ShulkerController::new);
+        register(Sheep.class, SheepController::new);
+        register(Breeze.class, BreezeController::new);
     }
 
     private static <T extends Entity> void register(Class<T> clazz, Function<T, Controller<? super T>> controllerFactory) {

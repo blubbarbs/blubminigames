@@ -51,6 +51,9 @@ public abstract class Controller<T extends Entity> implements Listener {
     protected T entity;
     protected ArrayList<ItemStack> abilities = new  ArrayList<>();
     protected HashMap<ItemStack, Supplier<Boolean>> abilityRunnables = new HashMap<>();
+    protected boolean isImmobile = false;
+    protected boolean canStrafe = true;
+    protected boolean canJump = true;
 
     public Controller(T entity, double scale, double reach, String... capabilities) {
         this.entity = entity;
@@ -86,6 +89,18 @@ public abstract class Controller<T extends Entity> implements Listener {
 
     public Player getPlayer() {
         return player;
+    }
+
+    public void setImmobile(boolean immobile) {
+        this.isImmobile = immobile;
+    }
+
+    public void setCanStrafe(boolean canStrafe) {
+        this.canStrafe = canStrafe;
+    }
+
+    public void setCanJump(boolean canJump) {
+        this.canJump = canJump;
     }
 
     public void setPilot(Player player) {

@@ -1,12 +1,15 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.gmail.blubberalls.MobPilot.MobController;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.block.Block;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Shulker;
 import org.bukkit.entity.ShulkerBullet;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.Random;
@@ -17,6 +20,7 @@ public class ShulkerController extends MobController<Shulker> {
     public ShulkerController(Shulker mob) {
         super(mob);
         registerAbility("Shoot Bullet", ItemStack.of(Material.NETHER_STAR), this::shootShulkerBullet, 5);
+        registerAbility("Teleport", ItemStack.of(Material.ENDER_PEARL), this::teleport, 3);
     }
 
     protected boolean shootShulkerBullet() {
@@ -48,10 +52,24 @@ public class ShulkerController extends MobController<Shulker> {
             return false;
 
         ShulkerBullet bullet = entity.getWorld().createEntity(entity.getEyeLocation(), ShulkerBullet.class);
-        bullet.setShooter(target);
+        bullet.setShooter(entity);
         bullet.setTarget(target);
         bullet.spawnAt(entity.getEyeLocation());
         entity.getWorld().playSound(entity, Sound.ENTITY_SHULKER_SHOOT, 2.0f, (random.nextFloat() - random.nextFloat()) * 0.2f + 1);
+        return true;
+    }
+
+    protected boolean teleport() {
+        RayTraceResult target = player.rayTraceBlocks(25, FluidCollisionMode.NEVER);
+
+        if (target == null)
+            return false;
+
+        Block teleportLocation = target.getHitBlock().getRelative(target.getHitBlockFace());
+        entity.teleport(teleportLocation.getLocation());
+        entity.setAttachedFace(target.getHitBlockFace());
+        entity.getWorld().playSound(entity, Sound.ENTITY_SHULKER_TELEPORT, 1, 1);
+
         return true;
     }
 
@@ -59,9 +77,9 @@ public class ShulkerController extends MobController<Shulker> {
     public void tick() {
         super.tick();
 
-        if (!player.getCurrentInput().isJump() && !player.getCurrentInput().isSneak() && entity.getPeek() > 0f)
+        if (!player.getCurrentInput().isJump() && !player.getCurrentInput().isSprint() && entity.getPeek() > 0f)
             entity.setPeek(0f);
-        else if (player.getCurrentInput().isSneak() && !player.getCurrentInput().isJump() && entity.getPeek() < .3f)
+        else if (player.getCurrentInput().isSprint() && !player.getCurrentInput().isJump() && entity.getPeek() < .3f)
             entity.setPeek(.3f);
         else if (player.getCurrentInput().isJump() && entity.getPeek() < 1f)
             entity.setPeek(1f);
