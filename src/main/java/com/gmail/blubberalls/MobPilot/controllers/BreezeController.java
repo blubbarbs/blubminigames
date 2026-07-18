@@ -70,6 +70,7 @@ public class BreezeController extends MobController<Breeze> {
     @Override
     public void tick() {
         super.tick();
+        entity.setRotation(entity.getYaw(), 0);
 
         if (isShooting)
             return;

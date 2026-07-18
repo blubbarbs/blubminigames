@@ -4,27 +4,39 @@ import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
 import com.gmail.blubberalls.MobPilot.nms.InactiveBrainWrapper;
 import com.gmail.blubberalls.MobPilot.nms.InactiveGoalSelectorWrapper;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlWrapper;
+import com.gmail.blubberalls.minigames.BlubMinigames;
 import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.UseCooldown;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
+import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.SoundCategory;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.craftbukkit.entity.CraftMob;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Arrow;
+import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityShootBowEvent;
-import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.*;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.lang.reflect.Field;
+import java.util.*;
+import java.util.function.Supplier;
 
-public class MobController<T extends Mob> extends Controller<T> {
+public class MobController<T extends Mob> implements Listener {
     private static final Field moveControllerField;
     private static final Field goalSelectorField;
     private static final Field targetSelectorField;
@@ -46,30 +58,81 @@ public class MobController<T extends Mob> extends Controller<T> {
         }
     }
 
+    public static class Capability {
+        public static String ATTACK = "attack";
+    }
+
+    public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
+                                                        PotionEffect.INFINITE_DURATION, 1, false, false, false);
+    public static ItemStack HELD_ITEM = ItemStack.of(Material.BREEZE_ROD);
+
+    static {
+        HELD_ITEM.setData(DataComponentTypes.ITEM_MODEL, Material.STRUCTURE_VOID.getKey());
+        HELD_ITEM.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        HELD_ITEM.setData(DataComponentTypes.ITEM_NAME, Component.text("Held Item"));
+    }
+
+    private int tickSchedulerID;
+    protected ItemStack itemInUse = null;
+    protected Player player = null;
+    protected GameMode playerGameMode;
+    protected ItemStack[] playerInventory;
+    protected HashMap<Attribute, Collection<AttributeModifier>> playerAttributeModifiers = new HashMap<>();
+    protected Collection<PotionEffect> playerPotionEffects;
+    protected AttributeModifier scaleModifier;
+    protected AttributeModifier reachModifier;
+    protected Set<String> capabilities = new HashSet<>();
+    protected T entity;
+    protected ArrayList<ItemStack> abilities = new  ArrayList<>();
+    protected HashMap<ItemStack, Supplier<Boolean>> abilityRunnables = new HashMap<>();
+    protected boolean isImmobile = false;
+    protected boolean canStrafe = true;
+    protected boolean canJump = true;
+
     protected MoveControlWrapper nmsMoveControl;
     protected InactiveGoalSelectorWrapper nmsGoalSelector = null;
     protected InactiveGoalSelectorWrapper nmsTargetSelector = null;
     protected InactiveBrainWrapper<?> nmsBrain = null;
 
-    public MobController(T mob, double scale, double reach, String... capabilities) {
-        super(mob, scale, reach, capabilities);
+    public MobController(T entity, double scale, double reach, String... capabilities) {
+        this.entity = entity;
+        this.capabilities.addAll(Arrays.stream(capabilities).toList());
+        scaleModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "scale_modifier"), scale - Attribute.SCALE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
+        reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
         nmsMoveControl = new MoveControlWrapper(this);
     }
 
-    public MobController(T mob, double scale, String... capabilities) {
-        this(mob, scale, Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), capabilities);
+    public MobController(T entity, double scale, String... capabilities) {
+        this(entity, scale, Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), capabilities);
     }
 
-    public MobController(T mob, String... capabilities) {
-        this(mob, 0.0, capabilities);
+    public MobController(T entity, String... capabilities) {
+        this(entity, 0.0f, capabilities);
     }
 
-    @Override
+    public T getEntity() {
+        return entity;
+    }
+
+    public Player getPlayer() {
+        return player;
+    }
+
+    public void setImmobile(boolean immobile) {
+        this.isImmobile = immobile;
+    }
+
+    public void setCanStrafe(boolean canStrafe) {
+        this.canStrafe = canStrafe;
+    }
+
+    public void setCanJump(boolean canJump) {
+        this.canJump = canJump;
+    }
+
     public void setPilot(Player player) {
         if (this.player != null)
             return;
-
-        super.setPilot(player);
 
         CraftMob craftMob = ((CraftMob) entity);
         craftMob.clearActiveItem();
@@ -92,14 +155,94 @@ public class MobController<T extends Mob> extends Controller<T> {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        this.player = player;
+        playerInventory = player.getInventory().getContents();
+        player.getInventory().clear();
+        player.getInventory().setHeldItemSlot(0);
+
+        playerPotionEffects = player.getActivePotionEffects();
+        for (PotionEffect effect : playerPotionEffects) {
+            player.removePotionEffect(effect.getType());
+        }
+
+        for (Attribute attribute : Registry.ATTRIBUTE) {
+            if (player.getAttribute(attribute) == null)
+                continue;
+
+            Collection<AttributeModifier> modifiers = player.getAttribute(attribute).getModifiers();
+
+            if (modifiers.isEmpty())
+                continue;
+
+            playerAttributeModifiers.put(attribute, modifiers);
+
+            for (AttributeModifier modifer : modifiers) {
+                player.getAttribute(attribute).removeModifier(modifer);
+            }
+        }
+
+        playerGameMode = player.getGameMode();
+        player.setGameMode(GameMode.SURVIVAL);
+
+        applyPlayerEffects();
+        initializePlayerEquipment();
+
+        entity.addPassenger(player);
+        Bukkit.getPluginManager().registerEvents(this, BlubMinigames.getInstance());
+        tickSchedulerID = Bukkit.getScheduler().scheduleSyncRepeatingTask(BlubMinigames.getInstance(), this::tick, 0L, 1L);
+        MobPilot.trackControllerInstance(player, this);
+
+        onInitialize();
     }
 
-    @Override
     public void removePilot() {
-        super.removePilot();
+        if (player == null)
+            return;
+
+        HandlerList.unregisterAll(this);
+        Bukkit.getScheduler().cancelTask(tickSchedulerID);
+
+        player.getInventory().setContents(playerInventory);
+
+        for (PotionEffect potionEffect : player.getActivePotionEffects()) {
+            player.removePotionEffect(potionEffect.getType());
+        }
+        for (PotionEffect potionEffect : playerPotionEffects) {
+            player.addPotionEffect(potionEffect);
+        }
+
+        for (Attribute attribute : Registry.ATTRIBUTE) {
+            if (player.getAttribute(attribute) == null)
+                continue;
+
+            Collection<AttributeModifier> modifiers = player.getAttribute(attribute).getModifiers();
+
+            if (modifiers.isEmpty())
+                continue;
+
+            for (AttributeModifier modifer : modifiers) {
+                player.getAttribute(attribute).removeModifier(modifer);
+            }
+        }
+
+        for (Attribute attribute : playerAttributeModifiers.keySet()) {
+            for (AttributeModifier attributeModifier : playerAttributeModifiers.get(attribute)) {
+                player.getAttribute(attribute).addModifier(attributeModifier);
+            }
+        }
+
+        player.setGameMode(playerGameMode);
+
+        if (!entity.isDead())
+            entity.removePassenger(player);
+
+        onDeinitialize();
+
+        MobPilot.deregisterController(player);
+        player = null;
 
         CraftMob craftMob = ((CraftMob) entity);
-
         try {
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl.getWrapped());
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector.getWrapped());
@@ -111,69 +254,65 @@ public class MobController<T extends Mob> extends Controller<T> {
         }
     }
 
-    @Override
+    protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds, boolean useRawItemStack) {
+        int index = abilities.size() + 1;
+        ItemStack abilityStack = useRawItemStack ? icon : new ItemStack(Material.STICK, 1);
+
+        if (!useRawItemStack) {
+            abilityStack.setData(DataComponentTypes.ITEM_MODEL, icon.getType().getKey());
+        }
+
+        abilityStack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        abilityStack.setData(DataComponentTypes.ITEM_NAME, Component.text(name));
+        abilityStack.setData(DataComponentTypes.USE_COOLDOWN, UseCooldown.useCooldown(cooldownSeconds)
+                .cooldownGroup(new NamespacedKey(BlubMinigames.getInstance(), "" + index)).build());
+
+        abilities.add(abilityStack);
+        abilityRunnables.put(abilityStack, callback);
+    }
+
+    protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds) {
+        this.registerAbility(name, icon, callback, cooldownSeconds, false);
+    }
+
     protected void initializePlayerEquipment() {
-        if (!capabilities.contains(Capability.ATTACK)) {
-            ItemStack noAttack = ItemStack.of(Material.STICK);
+        player.getInventory().setItem(0, entity.getEquipment().getItemInMainHand());
+        player.getInventory().setItem(EquipmentSlot.OFF_HAND, entity.getEquipment().getItemInOffHand());
+        player.getInventory().setItem(EquipmentSlot.HEAD, entity.getEquipment().getHelmet());
+        player.getInventory().setItem(EquipmentSlot.BODY, entity.getEquipment().getChestplate());
+        player.getInventory().setItem(EquipmentSlot.LEGS, entity.getEquipment().getLeggings());
+        player.getInventory().setItem(EquipmentSlot.FEET, entity.getEquipment().getBoots());
 
-            noAttack.setData(DataComponentTypes.ITEM_MODEL, Material.BARRIER.getKey());
-            noAttack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
-            noAttack.setData(DataComponentTypes.ITEM_NAME, Component.text("No Attack"));
-
-            player.getInventory().setItem(0, noAttack);
+        int index = 1;
+        for (ItemStack stack : abilities) {
+            player.getInventory().setItem(index++, stack);
         }
-        else if (!entity.getEquipment().getItemInMainHand().isEmpty()) {
-            ItemStack hand = entity.getEquipment().getItemInMainHand();
-            ItemMeta meta = hand.getItemMeta();
-            meta.setUnbreakable(true);
-            hand.setItemMeta(meta);
-            player.getInventory().setItem(0, hand);
+    }
+
+    protected void applyPlayerEffects() {
+        player.addPotionEffect(INVISIBILITY_EFFECT);
+        player.getAttribute(Attribute.SCALE).addModifier(scaleModifier);
+        player.getAttribute(Attribute.ENTITY_INTERACTION_RANGE).addModifier(reachModifier);
+    }
+
+    protected void tick() {
+        entity.setRotation(player.getYaw(), player.getPitch() - 25);
+
+        if (player.hasActiveItem()) {
+            if (player.getActiveItemUsedTime() == 0) {
+                onStartUsingItem();
+                itemInUse = player.getActiveItem();
+            }
+            else
+                onUsingItem();
         }
-
-        if (capabilities.contains(Capability.OFFHAND) && !entity.getEquipment().getItemInOffHand().isEmpty()) {
-            ItemStack offHand = entity.getEquipment().getItemInOffHand();
-            ItemMeta meta = offHand.getItemMeta();
-            meta.setUnbreakable(true);
-            offHand.setItemMeta(meta);
-            player.getInventory().setItemInOffHand(offHand);
-        }
-
-        if (capabilities.contains(Capability.ARMOR)) {
-            ItemStack helmet = entity.getEquipment().getHelmet();
-            ItemMeta helmetMeta = helmet.getItemMeta();
-            ItemStack chestplate = entity.getEquipment().getChestplate();
-            ItemMeta chestplateMeta = chestplate.getItemMeta();
-            ItemStack leggings = entity.getEquipment().getLeggings();
-            ItemMeta leggingsMeta = leggings.getItemMeta();
-            ItemStack boots = entity.getEquipment().getBoots();
-            ItemMeta bootsMeta = boots.getItemMeta();
-
-            if (!helmet.isEmpty()) {
-                helmetMeta.setUnbreakable(true);
-                helmet.setItemMeta(helmetMeta);
-                player.getInventory().setHelmet(helmet);
-            }
-
-            if (!chestplate.isEmpty()) {
-                chestplateMeta.setUnbreakable(true);
-                chestplate.setItemMeta(chestplateMeta);
-                player.getInventory().setChestplate(chestplate);
-            }
-
-            if (!leggings.isEmpty()) {
-                leggingsMeta.setUnbreakable(true);
-                leggings.setItemMeta(leggingsMeta);
-                player.getInventory().setLeggings(leggings);
-            }
-
-            if (!boots.isEmpty()) {
-                bootsMeta.setUnbreakable(true);
-                boots.setItemMeta(bootsMeta);
-                player.getInventory().setBoots(boots);
-            }
+        else if (!player.hasActiveItem() && itemInUse != null) {
+            onStopUsingItem();
+            itemInUse = null;
         }
 
-        super.initializePlayerEquipment();
+        if (entity.isDead() || entity.getPassengers().isEmpty())
+            removePilot();
     }
 
     public void onMoveControllerPreTick() {
@@ -199,36 +338,228 @@ public class MobController<T extends Mob> extends Controller<T> {
             entity.setJumping(player.getCurrentInput().isJump());
     }
 
-    @Override
-    public void onStartSneak() {
-        if (entity.getAmbientSound() != null)
-            entity.getWorld().playSound(entity, entity.getAmbientSound(), SoundCategory.NEUTRAL, 1f, 1f);
+    protected void onPlayerEquipmentChange(EquipmentSlot slot, ItemStack newItem) {
+        if (entity.canUseEquipmentSlot(slot) && !entity.getEquipment().getItem(slot).equals(newItem))
+            entity.getEquipment().setItem(slot, newItem);
     }
 
-    @Override
+    protected void onEntityEquipmentChange(EquipmentSlot slot, ItemStack newItem) {
+        if (player.canUseEquipmentSlot(slot) && !player.getEquipment().getItem(slot).equals(newItem))
+            player.getEquipment().setItem(slot, newItem);
+    }
+
     protected void swingAnimation() {
         entity.swingMainHand();
     }
 
-    @Override
-    public void onStartUsingItem() {
-        if (player.getActiveItemHand() == EquipmentSlot.OFF_HAND || player.getInventory().getHeldItemSlot() == 0)
-            entity.startUsingItem(player.getActiveItemHand());
+    protected void onInitialize() {}
+
+    protected void onDeinitialize() {}
+
+    protected void onStartUsingItem() {
+        entity.startUsingItem(player.getActiveItemHand());
     }
 
-    @Override
-    public void onUsingItem() {
-        if (!entity.getEquipment().getItem(player.getActiveItemHand()).equals(player.getActiveItem()))
+    protected void onUsingItem() {
+        entity.setActiveItemRemainingTime(player.getActiveItemRemainingTime());
+    }
+
+    protected void onStopUsingItem() {
+        entity.clearActiveItem();
+    }
+
+    protected void onMove(float forwards, float sideways) {}
+
+    protected void onStartJump() {}
+
+    protected void onStopJump() {}
+
+    protected void onStartSneak() {
+        if (entity.getAmbientSound() != null)
+            entity.getWorld().playSound(entity, entity.getAmbientSound(), SoundCategory.NEUTRAL, 1f, 1f);
+    }
+
+    protected void onStopSneak() {}
+
+    protected void onStartSprint() {}
+
+    protected void onStopSprint() {}
+
+    @EventHandler
+    public void onDismountEntity(EntityDismountEvent event) {
+        if (event.getEntity() != player)
             return;
 
-        if (entity.getActiveItemUsedTime() > 0)
-            entity.setActiveItemRemainingTime(player.getActiveItemRemainingTime());
+        event.setCancelled(true);
     }
 
-    @Override
-    public void onStopUsingItem() {
-        if (entity.getActiveItemUsedTime() > 0)
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity() != entity)
+            return;
+
+        removePilot();
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        if (event.getEntity() != player)
+            return;
+
+        event.setKeepInventory(true);
+        removePilot();
+    }
+
+    @EventHandler
+    public void onPlayerInput(PlayerInputEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        if (event.getInput().isSprint() && !player.getCurrentInput().isSprint())
+            onStartSprint();
+        else if (!event.getInput().isSprint() && player.getCurrentInput().isSprint())
+            onStopSprint();
+        else if (event.getInput().isJump() && !player.getCurrentInput().isJump())
+            onStartJump();
+        else if (!event.getInput().isJump() && player.getCurrentInput().isJump())
+            onStopJump();
+        else if (event.getInput().isSneak() && !player.getCurrentInput().isSneak())
+            onStartSneak();
+        else if (!event.getInput().isSneak() && player.getCurrentInput().isSneak())
+            onStopSneak();
+
+        float newX = event.getInput().isRight() ? 1 : 0;
+        newX -= event.getInput().isLeft() ? 1 : 0;
+        float oldX = player.getSidewaysMovement();
+        float newZ = event.getInput().isForward() ? 1 : 0;
+        newZ -= event.getInput().isBackward() ? 1 : 0;
+        float oldZ = player.getForwardsMovement();
+
+        if (newX != oldX || newZ != oldZ)
+            onMove(newZ, newX);
+    }
+
+    @EventHandler
+    public void onPlayerPlaceBlock(BlockPlaceEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerDamageBlock(BlockDamageEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerBreakBlock(BlockBreakEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerPickupItem(PlayerAttemptPickupItemEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerSwapItems(PlayerSwapHandItemsEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerPickBlockEvent(PlayerPickBlockEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onEntityTargetLivingEntity(EntityTargetLivingEntityEvent event) {
+        if (event.getTarget() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerDamage(EntityDamageEvent event) {
+        if (event.getEntity() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerHungerChange(FoodLevelChangeEvent event) {
+        if (event.getEntity() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerPotionEffect(EntityPotionEffectEvent event) {
+        if (event.getEntity() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPlayerHeldItemChange(PlayerItemHeldEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        ItemStack stack = event.getPlayer().getInventory().getItem(event.getNewSlot());
+
+        if (event.getPreviousSlot() == 0 && stack != null && !stack.isEmpty() && abilities.contains(stack) && player.getCooldown(stack) == 0) {
+            Supplier<Boolean> callback = abilityRunnables.get(stack);
+            float cooldownSeconds = stack.getData(DataComponentTypes.USE_COOLDOWN).seconds();
+
+            if (callback.get())
+                player.setCooldown(stack, (int) (cooldownSeconds * 20));
+        }
+
+        if (player.hasActiveItem()) {
+            player.clearActiveItem();
             entity.clearActiveItem();
+        }
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onEquipmentChange(EntityEquipmentChangedEvent event) {
+        for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
+            EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
+
+            if (event.getEntity() == player)
+                onPlayerEquipmentChange(slot, change.newItem());
+            else if (event.getEntity() == entity)
+                onEntityEquipmentChange(slot, change.newItem());
+        }
     }
 
     @EventHandler
@@ -249,21 +580,6 @@ public class MobController<T extends Mob> extends Controller<T> {
         if (capabilities.contains(Capability.ATTACK) && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null) {
             swingAnimation();
             this.entity.attack(event.getEntity());
-        }
-    }
-
-    @EventHandler
-    public void onEquipmentChange(EntityEquipmentChangedEvent event) {
-        if (event.getEntity() != entity)
-            return;
-
-        for (EquipmentSlot slot : event.getEquipmentChanges().keySet()) {
-            EntityEquipmentChangedEvent.EquipmentChange change = event.getEquipmentChanges().get(slot);
-
-            if (slot == EquipmentSlot.HAND)
-                player.getInventory().setItem(0, change.newItem());
-            else if (player.canUseEquipmentSlot(slot))
-                player.getInventory().setItem(slot, change.newItem());
         }
     }
 
@@ -293,5 +609,38 @@ public class MobController<T extends Mob> extends Controller<T> {
 
         event.getProjectile().setShooter(entity);
         event.getProjectile().teleport(newLocation);
+    }
+
+    @EventHandler
+    public void onItemDamage(PlayerItemDamageEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onRightClickBow(PlayerInteractEvent event) {
+        if (event.getPlayer() != player || !event.getAction().isRightClick() || !event.hasItem() || player.hasActiveItem())
+            return;
+
+        ItemStack stack = event.getItem();
+
+        if (player.getInventory().contains(Material.ARROW)
+                || player.getInventory().contains(Material.SPECTRAL_ARROW)
+                || player.getInventory().contains(Material.TIPPED_ARROW))
+            return;
+
+        if (stack.getType() == Material.BOW || stack.getType() == Material.CROSSBOW) {
+            player.getInventory().addItem(new ItemStack(Material.ARROW));
+        }
+    }
+
+    @EventHandler
+    public void onOpenInventory(InventoryOpenEvent event) {
+        if (event.getPlayer() != player)
+            return;
+
+        event.setCancelled(true);
     }
 }

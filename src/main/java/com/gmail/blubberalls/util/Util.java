@@ -3,7 +3,11 @@ package com.gmail.blubberalls.util;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
+import java.util.Random;
+
 public class Util {
+    private static Random random = new Random();
+
     public static Vector getRelativeMoveVector(LivingEntity entity) {
         Vector vector = entity.getEyeLocation().getDirection().normalize();
 
@@ -47,5 +51,9 @@ public class Util {
         }
 
         return vector.rotateAroundY(Math.toRadians(angle));
+    }
+
+    public static double randomDouble(double min, double max) {
+        return random.nextDouble() * (max - min) + min;
     }
 }

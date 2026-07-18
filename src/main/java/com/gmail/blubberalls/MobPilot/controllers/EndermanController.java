@@ -2,15 +2,14 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
 import com.gmail.blubberalls.MobPilot.MobController;
-import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
-import net.kyori.adventure.text.Component;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Enderman;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockDataMeta;
 import org.bukkit.util.BoundingBox;
@@ -81,6 +80,18 @@ public class EndermanController extends MobController<Enderman> {
         entity.setScreaming(false);
     }
 
+    @Override
+    protected void onPlayerEquipmentChange(EquipmentSlot slot, ItemStack newItem) {
+        if (slot == EquipmentSlot.HAND) {
+            if (newItem.getItemMeta() != null && newItem.getItemMeta() instanceof BlockDataMeta meta)
+                entity.setCarriedBlock(meta.getBlockData(newItem.getType()));
+            else if (newItem.getType().isBlock())
+                entity.setCarriedBlock(newItem.getType().createBlockData());
+            else
+                entity.setCarriedBlock(null);
+        }
+    }
+
     @EventHandler
     @Override
     public void onPlayerPlaceBlock(BlockPlaceEvent event) {
@@ -88,29 +99,25 @@ public class EndermanController extends MobController<Enderman> {
             return;
 
         event.getPlayer().getInventory().setItem(0, null);
-        entity.setCarriedBlock(null);
     }
 
     @EventHandler
     public void onPlayerPickBlock(PlayerPickBlockEvent event) {
-        if (event.getPlayer() != player || event.getPlayer().getInventory().getItem(0) != null)
+        if (event.getPlayer() != player)
             return;
 
-        ItemStack stack = ItemStack.of(event.getBlock().getType());
+        if (event.getPlayer().getInventory().getItem(0) == null) {
+            ItemStack stack = ItemStack.of(event.getBlock().getType());
 
-        if (stack.getItemMeta() instanceof BlockDataMeta meta) {
-            meta.setBlockData(event.getBlock().getBlockData());
-            stack.setItemMeta(meta);
+            if (stack.getItemMeta() instanceof BlockDataMeta meta) {
+                meta.setBlockData(event.getBlock().getBlockData());
+                stack.setItemMeta(meta);
+            }
+
+            player.getInventory().setItem(0, stack);
+            event.getBlock().setType(Material.AIR);
         }
 
-        player.getInventory().setItem(0, stack);
-        if (stack.getItemMeta() != null && stack.getItemMeta() instanceof BlockDataMeta meta)
-            entity.setCarriedBlock(meta.getBlockData(stack.getType()));
-        else
-            entity.setCarriedBlock(stack.getType().createBlockData());
-
-        event.getPlayer().getInventory().setHeldItemSlot(0);
-        event.getBlock().setType(Material.AIR);
         event.setCancelled(true);
     }
 

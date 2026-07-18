@@ -2,9 +2,7 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.minigames.BlubMinigames;
-import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.event.entity.WardenAngerChangeEvent;
-import net.kyori.adventure.text.Component;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
@@ -13,11 +11,9 @@ import org.bukkit.craftbukkit.entity.CraftWarden;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Warden;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
-import javax.xml.crypto.Data;
 import java.util.HashSet;
 
 public class WardenController extends MobController<Warden> {

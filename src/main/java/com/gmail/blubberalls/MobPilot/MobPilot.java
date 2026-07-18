@@ -11,8 +11,8 @@ import java.util.UUID;
 import java.util.function.Function;
 
 public class MobPilot implements Listener {
-    private static final HashMap<UUID, Controller<?>> activeControllers = new HashMap<>();
-    private static final HashMap<Class<? extends Entity>, Function<Entity, Controller<? extends Entity>>> controllerFactories = new HashMap<>();
+    private static final HashMap<UUID, MobController<?>> activeControllers = new HashMap<>();
+    private static final HashMap<Class<? extends Entity>, Function<Entity, MobController<? extends Entity>>> controllerFactories = new HashMap<>();
 
     static {
         register(Creeper.class, CreeperController::new);
@@ -27,7 +27,7 @@ public class MobPilot implements Listener {
         register(Stray.class, SkeletonController::new);
         register(Bogged.class, SkeletonController::new);
         register(Parched.class, SkeletonController::new);
-        register(Spider.class, (spider) -> new MobController<>(spider, .15, Controller.Capability.ATTACK));
+        register(Spider.class, (spider) -> new MobController<>(spider, .15, MobController.Capability.ATTACK));
         register(Enderman.class, EndermanController::new);
         register(IronGolem.class, IronGolemController::new);
         register(Warden.class, WardenController::new);
@@ -35,9 +35,11 @@ public class MobPilot implements Listener {
         register(Shulker.class, ShulkerController::new);
         register(Sheep.class, SheepController::new);
         register(Breeze.class, BreezeController::new);
+        register(Snowman.class, SnowGolemController::new);
+        register(CopperGolem.class, CopperGolemController::new);
     }
 
-    private static <T extends Entity> void register(Class<T> clazz, Function<T, Controller<? super T>> controllerFactory) {
+    private static <T extends Entity> void register(Class<T> clazz, Function<T, MobController<? super T>> controllerFactory) {
         controllerFactories.put(clazz, entity -> controllerFactory.apply((T) entity));
     }
 
@@ -45,7 +47,7 @@ public class MobPilot implements Listener {
         BlubMinigames.getInstance().registerCommand("dismount", new DismountCommand());
     }
 
-    static void trackControllerInstance(Player player, Controller<?> controller) {
+    static void trackControllerInstance(Player player, MobController<?> controller) {
         activeControllers.put(player.getUniqueId(), controller);
     }
 
@@ -53,7 +55,7 @@ public class MobPilot implements Listener {
         activeControllers.remove(player.getUniqueId());
     }
 
-    public static Controller<?> getController(Player player) {
+    public static MobController<?> getController(Player player) {
         return activeControllers.get(player.getUniqueId());
     }
 
@@ -61,7 +63,7 @@ public class MobPilot implements Listener {
         return activeControllers.containsKey(player.getUniqueId());
     }
 
-    public static Controller<?> createController(Entity entity) {
+    public static MobController<?> createController(Entity entity) {
         if (controllerFactories.containsKey(entity.getType().getEntityClass())) {
             return controllerFactories.get(entity.getType().getEntityClass()).apply(entity);
         }

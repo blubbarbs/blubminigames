@@ -1,11 +1,9 @@
 package com.gmail.blubberalls.minigames;
 
-import com.gmail.blubberalls.MobPilot.Controller;
+import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.MobPilot.MobPilot;
-import com.gmail.blubberalls.MobPilot.controllers.*;
 import io.papermc.paper.event.player.PlayerPickEntityEvent;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -34,7 +32,7 @@ public class BlubMinigames extends JavaPlugin implements Listener {
         if (MobPilot.hasController(event.getPlayer()))
             return;
 
-        Controller<?> controller = MobPilot.createController(event.getEntity());
+        MobController<?> controller = MobPilot.createController(event.getEntity());
 
         if (controller == null)
             return;

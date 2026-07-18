@@ -10,11 +10,21 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 public class ZombieController extends MobController<Zombie> {
+    static PotionEffect SLOW_MINING_EFFECT = new PotionEffect(PotionEffectType.MINING_FATIGUE, PotionEffect.INFINITE_DURATION, 0, false, false, false);
+
     public ZombieController(Zombie mob) {
-        super(mob, Capability.ATTACK, Capability.ARMOR, Capability.HAND, Capability.OFFHAND);
+        super(mob, Capability.ATTACK);
         registerAbility("Pickup", ItemStack.of(Material.GRAY_BUNDLE), this::pickupAbility, 1f);
+    }
+
+    @Override
+    protected void applyPlayerEffects() {
+        super.applyPlayerEffects();
+        player.addPotionEffect(SLOW_MINING_EFFECT);
     }
 
     @Override

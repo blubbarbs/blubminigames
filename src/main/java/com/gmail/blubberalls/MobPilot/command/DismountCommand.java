@@ -1,6 +1,6 @@
 package com.gmail.blubberalls.MobPilot.command;
 
-import com.gmail.blubberalls.MobPilot.Controller;
+import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.MobPilot.MobPilot;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -13,7 +13,7 @@ public class DismountCommand implements BasicCommand {
         if (!(commandSourceStack.getExecutor() instanceof Player player))
             return;
 
-        Controller<?> controller = MobPilot.getController(player);
+        MobController<?> controller = MobPilot.getController(player);
 
         if (controller != null)
             controller.removePilot();

@@ -8,7 +8,7 @@ import org.bukkit.inventory.ItemStack;
 
 public class SkeletonController extends MobController<AbstractSkeleton> {
     public SkeletonController(AbstractSkeleton mob) {
-        super(mob, Capability.ATTACK, Capability.ARMOR, Capability.HAND, Capability.OFFHAND);
+        super(mob, Capability.ATTACK);
         registerAbility("Pickup", ItemStack.of(Material.WHITE_BUNDLE), this::pickupAbility, 1f);
     }
 
