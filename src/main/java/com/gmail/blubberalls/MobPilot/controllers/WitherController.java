@@ -32,6 +32,10 @@ public class WitherController extends FlyingMobController<Wither> {
     @Override
     protected void onInitialize() {
         entity.setInvulnerableTicks(0);
+        entity.setInvulnerable(false);
+        entity.setTarget(Wither.Head.CENTER, null);
+        entity.setTarget(Wither.Head.LEFT, null);
+        entity.setTarget(Wither.Head.RIGHT, null);
     }
 
     public Location getHeadLocation(int head) {
