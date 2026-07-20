@@ -66,7 +66,7 @@ public class EndermanController extends MobController<Enderman> {
                 meta.setBlockData(entity.getCarriedBlock());
                 item.setItemMeta(meta);
             }
-            player.getInventory().setItem(0, item);
+            player.getInventory().setItem(HELD_ITEM_HOTKEY, item);
         }
     }
 
@@ -98,7 +98,7 @@ public class EndermanController extends MobController<Enderman> {
         if (event.getPlayer() != player)
             return;
 
-        event.getPlayer().getInventory().setItem(0, null);
+        event.getPlayer().getInventory().setItem(HELD_ITEM_HOTKEY, null);
     }
 
     @EventHandler
@@ -106,7 +106,7 @@ public class EndermanController extends MobController<Enderman> {
         if (event.getPlayer() != player)
             return;
 
-        if (event.getPlayer().getInventory().getItem(0) == null) {
+        if (event.getPlayer().getInventory().getItem(HELD_ITEM_HOTKEY) == null) {
             ItemStack stack = ItemStack.of(event.getBlock().getType());
 
             if (stack.getItemMeta() instanceof BlockDataMeta meta) {
@@ -114,7 +114,7 @@ public class EndermanController extends MobController<Enderman> {
                 stack.setItemMeta(meta);
             }
 
-            player.getInventory().setItem(0, stack);
+            player.getInventory().setItem(HELD_ITEM_HOTKEY, stack);
             event.getBlock().setType(Material.AIR);
         }
 

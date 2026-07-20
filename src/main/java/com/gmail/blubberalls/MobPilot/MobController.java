@@ -73,6 +73,7 @@ public class MobController<T extends Mob> implements Listener {
                                                         PotionEffect.INFINITE_DURATION, 1, false, false, false);
     public static ItemStack HELD_ITEM = ItemStack.of(Material.BREEZE_ROD);
     public static PDC.Key<String> ABILITY_STRING_KEY = new PDC.Key<>(new NamespacedKey(BlubMinigames.getInstance(), "ability_key"), PersistentDataType.STRING);
+    public static int HELD_ITEM_HOTKEY = 8;
 
     static {
         HELD_ITEM.setData(DataComponentTypes.ITEM_MODEL, Material.STRUCTURE_VOID.getKey());
@@ -173,7 +174,7 @@ public class MobController<T extends Mob> implements Listener {
         this.player = player;
         playerInventory = player.getInventory().getContents();
         player.getInventory().clear();
-        player.getInventory().setHeldItemSlot(0);
+        player.getInventory().setHeldItemSlot(HELD_ITEM_HOTKEY);
 
         playerPotionEffects = player.getActivePotionEffects();
         for (PotionEffect effect : playerPotionEffects) {
@@ -302,15 +303,20 @@ public class MobController<T extends Mob> implements Listener {
 
 
     protected void initializePlayerEquipment() {
-        player.getInventory().setItem(0, entity.getEquipment().getItemInMainHand());
+        player.getInventory().setItem(HELD_ITEM_HOTKEY, entity.getEquipment().getItemInMainHand());
         player.getInventory().setItem(EquipmentSlot.OFF_HAND, entity.getEquipment().getItemInOffHand());
         player.getInventory().setItem(EquipmentSlot.HEAD, entity.getEquipment().getHelmet());
         player.getInventory().setItem(EquipmentSlot.BODY, entity.getEquipment().getChestplate());
         player.getInventory().setItem(EquipmentSlot.LEGS, entity.getEquipment().getLeggings());
         player.getInventory().setItem(EquipmentSlot.FEET, entity.getEquipment().getBoots());
 
-        int index = 1;
+        int index = 0;
         for (ItemStack stack : abilityStacks) {
+            if (index == HELD_ITEM_HOTKEY) {
+                index++;
+                continue;
+            }
+
             player.getInventory().setItem(index++, stack);
         }
     }
@@ -563,7 +569,7 @@ public class MobController<T extends Mob> implements Listener {
         ItemStack stack = event.getPlayer().getInventory().getItem(event.getNewSlot());
         boolean isAbility = stack != null && PDC.has(stack, ABILITY_STRING_KEY);
 
-        if (event.getPreviousSlot() == 0 && isAbility && player.getCooldown(stack) == 0) {
+        if (event.getPreviousSlot() == HELD_ITEM_HOTKEY && isAbility && player.getCooldown(stack) == 0) {
             UUID abilityUUID = UUID.fromString(PDC.get(stack, ABILITY_STRING_KEY));
             Function<ItemStack, Boolean> callback = abilityRunnables.get(abilityUUID);
             float cooldownSeconds = stack.getData(DataComponentTypes.USE_COOLDOWN).seconds();

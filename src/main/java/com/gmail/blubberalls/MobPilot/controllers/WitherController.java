@@ -12,6 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
+import javax.xml.crypto.Data;
+
 public class WitherController extends FlyingMobController<Wither> {
     static int NUM_SKULLS_UNTIL_BLUE = 3;
     static ItemStack WITHER_SKULL_HEAD;
@@ -24,9 +26,15 @@ public class WitherController extends FlyingMobController<Wither> {
 
     public WitherController(Wither entity) {
         super(entity);
+        ItemStack skullItemStack = WITHER_SKULL_HEAD.clone();
+
+        skullItemStack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        skullItemStack.setData(DataComponentTypes.MAX_DAMAGE, NUM_SKULLS_UNTIL_BLUE);
+        skullItemStack.setData(DataComponentTypes.DAMAGE, NUM_SKULLS_UNTIL_BLUE);
+
         registerAbility("Shoot Main Head", WITHER_SKULL_HEAD.clone(), this::shootMainSkull, 1f, true);
-        registerAbility("Shoot Left Head", WITHER_SKULL_HEAD.clone(), (itemStack -> shootSideSkull(1, itemStack)), 3f, true);
-        registerAbility("Shoot Right Head", WITHER_SKULL_HEAD.clone(), (itemStack -> shootSideSkull(2, itemStack)), 3f, true);
+        registerAbility("Shoot Left Head", skullItemStack.clone(), (itemStack -> shootSideSkull(1, itemStack)), 3f, true);
+        registerAbility("Shoot Right Head", skullItemStack.clone(), (itemStack -> shootSideSkull(2, itemStack)), 3f, true);
     }
 
     @Override
@@ -87,16 +95,18 @@ public class WitherController extends FlyingMobController<Wither> {
     protected boolean shootSideSkull(int head, ItemStack stack) {
         boolean blueSkull = false;
 
-        if (stack.getAmount() < NUM_SKULLS_UNTIL_BLUE - 1) {
-            stack.setAmount(stack.getAmount() + 1);
+        int uses = NUM_SKULLS_UNTIL_BLUE - stack.getData(DataComponentTypes.DAMAGE);
+
+        if (uses < NUM_SKULLS_UNTIL_BLUE - 1) {
+            stack.setData(DataComponentTypes.DAMAGE, NUM_SKULLS_UNTIL_BLUE - uses - 1);
         }
-        else if (stack.getAmount() == NUM_SKULLS_UNTIL_BLUE - 1) {
-            stack.setAmount(stack.getAmount() + 1);
+        else if (uses == NUM_SKULLS_UNTIL_BLUE - 1) {
+            stack.setData(DataComponentTypes.DAMAGE, 0);
             stack.setData(DataComponentTypes.PROFILE, WITHER_SKULL_BLUE_HEAD.getData(DataComponentTypes.PROFILE));
         }
         else {
             blueSkull = true;
-            stack.setAmount(1);
+            stack.setData(DataComponentTypes.DAMAGE, NUM_SKULLS_UNTIL_BLUE);
             stack.setData(DataComponentTypes.PROFILE, WITHER_SKULL_HEAD.getData(DataComponentTypes.PROFILE));
         }
 
