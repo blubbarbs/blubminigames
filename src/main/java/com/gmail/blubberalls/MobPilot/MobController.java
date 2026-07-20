@@ -2,6 +2,7 @@ package com.gmail.blubberalls.MobPilot;
 
 import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
 import com.gmail.blubberalls.MobPilot.nms.*;
+import com.gmail.blubberalls.ezpdc.PDC;
 import com.gmail.blubberalls.minigames.BlubMinigames;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseCooldown;
@@ -27,11 +28,13 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MobController<T extends Mob> implements Listener {
@@ -69,6 +72,7 @@ public class MobController<T extends Mob> implements Listener {
     public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
                                                         PotionEffect.INFINITE_DURATION, 1, false, false, false);
     public static ItemStack HELD_ITEM = ItemStack.of(Material.BREEZE_ROD);
+    public static PDC.Key<String> ABILITY_STRING_KEY = new PDC.Key<>(new NamespacedKey(BlubMinigames.getInstance(), "ability_key"), PersistentDataType.STRING);
 
     static {
         HELD_ITEM.setData(DataComponentTypes.ITEM_MODEL, Material.STRUCTURE_VOID.getKey());
@@ -87,8 +91,8 @@ public class MobController<T extends Mob> implements Listener {
     protected AttributeModifier reachModifier;
     protected Set<String> capabilities = new HashSet<>();
     protected T entity;
-    protected ArrayList<ItemStack> abilities = new  ArrayList<>();
-    protected HashMap<ItemStack, Supplier<Boolean>> abilityRunnables = new HashMap<>();
+    protected ArrayList<ItemStack> abilityStacks = new ArrayList<>();
+    protected HashMap<UUID, Function<ItemStack, Boolean>> abilityRunnables = new HashMap<>();
     protected boolean isImmobile = false;
     protected boolean canStrafe = true;
     protected boolean canJump = true;
@@ -266,26 +270,36 @@ public class MobController<T extends Mob> implements Listener {
         }
     }
 
-    protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds, boolean useRawItemStack) {
-        int index = abilities.size() + 1;
+    protected void registerAbility(String name, ItemStack icon, Function<ItemStack, Boolean> callback, float cooldownSeconds, boolean useRawItemStack) {
         ItemStack abilityStack = useRawItemStack ? icon : new ItemStack(Material.STICK, 1);
 
         if (!useRawItemStack) {
             abilityStack.setData(DataComponentTypes.ITEM_MODEL, icon.getType().getKey());
         }
 
-        abilityStack.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        UUID abilityUUID = UUID.randomUUID();
+        PDC.set(abilityStack, ABILITY_STRING_KEY, abilityUUID.toString());
         abilityStack.setData(DataComponentTypes.ITEM_NAME, Component.text(name));
+        abilityStack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name));
         abilityStack.setData(DataComponentTypes.USE_COOLDOWN, UseCooldown.useCooldown(cooldownSeconds)
-                .cooldownGroup(new NamespacedKey(BlubMinigames.getInstance(), "" + index)).build());
+                .cooldownGroup(new NamespacedKey(BlubMinigames.getInstance(), abilityUUID.toString())).build());
 
-        abilities.add(abilityStack);
-        abilityRunnables.put(abilityStack, callback);
+        abilityRunnables.put(abilityUUID, callback);
+        abilityStacks.add(abilityStack);
+    }
+
+    protected void registerAbility(String name, ItemStack icon, Function<ItemStack, Boolean> callback, float cooldownSeconds) {
+        registerAbility(name, icon, callback, cooldownSeconds, false);
+    }
+
+    protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds, boolean useRawItemStack) {
+        registerAbility(name, icon, (itemStack -> callback.get()), cooldownSeconds, useRawItemStack);
     }
 
     protected void registerAbility(String name, ItemStack icon, Supplier<Boolean> callback, float cooldownSeconds) {
-        this.registerAbility(name, icon, callback, cooldownSeconds, false);
+        registerAbility(name, icon, callback, cooldownSeconds, false);
     }
+
 
     protected void initializePlayerEquipment() {
         player.getInventory().setItem(0, entity.getEquipment().getItemInMainHand());
@@ -296,7 +310,7 @@ public class MobController<T extends Mob> implements Listener {
         player.getInventory().setItem(EquipmentSlot.FEET, entity.getEquipment().getBoots());
 
         int index = 1;
-        for (ItemStack stack : abilities) {
+        for (ItemStack stack : abilityStacks) {
             player.getInventory().setItem(index++, stack);
         }
     }
@@ -547,12 +561,14 @@ public class MobController<T extends Mob> implements Listener {
             return;
 
         ItemStack stack = event.getPlayer().getInventory().getItem(event.getNewSlot());
+        boolean isAbility = stack != null && PDC.has(stack, ABILITY_STRING_KEY);
 
-        if (event.getPreviousSlot() == 0 && stack != null && !stack.isEmpty() && abilities.contains(stack) && player.getCooldown(stack) == 0) {
-            Supplier<Boolean> callback = abilityRunnables.get(stack);
+        if (event.getPreviousSlot() == 0 && isAbility && player.getCooldown(stack) == 0) {
+            UUID abilityUUID = UUID.fromString(PDC.get(stack, ABILITY_STRING_KEY));
+            Function<ItemStack, Boolean> callback = abilityRunnables.get(abilityUUID);
             float cooldownSeconds = stack.getData(DataComponentTypes.USE_COOLDOWN).seconds();
 
-            if (callback.get())
+            if (callback.apply(stack))
                 player.setCooldown(stack, (int) (cooldownSeconds * 20));
         }
 

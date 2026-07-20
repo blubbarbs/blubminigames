@@ -1,9 +1,22 @@
 package com.gmail.blubberalls.util;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.ResolvableProfile;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.profile.PlayerTextures;
 import org.bukkit.util.Vector;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Random;
+import java.util.UUID;
 
 public class Util {
     private static Random random = new Random();
@@ -55,5 +68,24 @@ public class Util {
 
     public static double randomDouble(double min, double max) {
         return random.nextDouble() * (max - min) + min;
+    }
+
+    public static ItemStack createSkull(String url) {
+        UUID uuid = UUID.randomUUID();
+        PlayerProfile profile = Bukkit.createProfile(uuid);
+        PlayerTextures textures = profile.getTextures();
+
+        try {
+            textures.setSkin(URI.create(url).toURL());
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+
+        profile.setTextures(textures);
+
+        ItemStack head = ItemStack.of(Material.PLAYER_HEAD);
+        head.setData(DataComponentTypes.PROFILE, ResolvableProfile.resolvableProfile(profile));
+
+        return head;
     }
 }
