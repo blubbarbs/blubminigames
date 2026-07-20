@@ -1,9 +1,7 @@
 package com.gmail.blubberalls.MobPilot;
 
 import com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent;
-import com.gmail.blubberalls.MobPilot.nms.InactiveBrainWrapper;
-import com.gmail.blubberalls.MobPilot.nms.InactiveGoalSelectorWrapper;
-import com.gmail.blubberalls.MobPilot.nms.MoveControlWrapper;
+import com.gmail.blubberalls.MobPilot.nms.*;
 import com.gmail.blubberalls.minigames.BlubMinigames;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseCooldown;
@@ -38,6 +36,8 @@ import java.util.function.Supplier;
 
 public class MobController<T extends Mob> implements Listener {
     private static final Field moveControllerField;
+    private static final Field lookControllerField;
+    private static final Field jumpControllerField;
     private static final Field goalSelectorField;
     private static final Field targetSelectorField;
     private static final Field brainField;
@@ -46,6 +46,10 @@ public class MobController<T extends Mob> implements Listener {
         try {
             moveControllerField = net.minecraft.world.entity.Mob.class.getDeclaredField("moveControl");
             moveControllerField.setAccessible(true);
+            lookControllerField = net.minecraft.world.entity.Mob.class.getDeclaredField("lookControl");
+            lookControllerField.setAccessible(true);
+            jumpControllerField = net.minecraft.world.entity.Mob.class.getDeclaredField("jumpControl");
+            jumpControllerField.setAccessible(true);
             goalSelectorField = net.minecraft.world.entity.Mob.class.getDeclaredField("goalSelector");
             goalSelectorField.setAccessible(true);
             targetSelectorField = net.minecraft.world.entity.Mob.class.getDeclaredField("targetSelector");
@@ -90,6 +94,8 @@ public class MobController<T extends Mob> implements Listener {
     protected boolean canJump = true;
 
     protected MoveControlWrapper nmsMoveControl;
+    protected LookControlWrapper nmsLookControl;
+    protected JumpControlWrapper nmsJumpControl;
     protected InactiveGoalSelectorWrapper nmsGoalSelector = null;
     protected InactiveGoalSelectorWrapper nmsTargetSelector = null;
     protected InactiveBrainWrapper<?> nmsBrain = null;
@@ -100,6 +106,8 @@ public class MobController<T extends Mob> implements Listener {
         scaleModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "scale_modifier"), scale - Attribute.SCALE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
         reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
         nmsMoveControl = new MoveControlWrapper(this);
+        nmsLookControl = new LookControlWrapper(this);
+        nmsJumpControl = new JumpControlWrapper(this);
     }
 
     public MobController(T entity, double scale, String... capabilities) {
@@ -147,6 +155,8 @@ public class MobController<T extends Mob> implements Listener {
             nmsBrain = new InactiveBrainWrapper<>(craftMob.getHandle().getBrain());
 
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl);
+            lookControllerField.set(craftMob.getHandle(), nmsLookControl);
+            jumpControllerField.set(craftMob.getHandle(), nmsJumpControl);
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector);
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector);
             brainField.set(craftMob.getHandle(), nmsBrain);
@@ -245,6 +255,8 @@ public class MobController<T extends Mob> implements Listener {
         CraftMob craftMob = ((CraftMob) entity);
         try {
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl.getWrapped());
+            lookControllerField.set(craftMob.getHandle(), nmsLookControl.getWrapped());
+            jumpControllerField.set(craftMob.getHandle(), nmsJumpControl.getWrapped());
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector.getWrapped());
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector.getWrapped());
             brainField.set(craftMob.getHandle(), nmsBrain.getWrapped());
@@ -316,10 +328,15 @@ public class MobController<T extends Mob> implements Listener {
     }
 
     public void onMoveControllerPreTick() {
-        if (!isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0))
+        boolean isMoving = !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
+
+        if (isMoving)
             nmsMoveControl.strafe(player.getForwardsMovement(), player.getSidewaysMovement());
         else
             nmsMoveControl.setWait();
+
+        if (!isImmobile && canJump)
+            entity.setJumping(player.getCurrentInput().isJump());
     }
 
     public void onMoveControllerPostTick() {
@@ -333,9 +350,6 @@ public class MobController<T extends Mob> implements Listener {
             craftMob.getHandle().setZza(0);
             craftMob.getHandle().setXxa(0);
         }
-
-        if (!isImmobile && canJump)
-            entity.setJumping(player.getCurrentInput().isJump());
     }
 
     protected void onPlayerEquipmentChange(EquipmentSlot slot, ItemStack newItem) {
