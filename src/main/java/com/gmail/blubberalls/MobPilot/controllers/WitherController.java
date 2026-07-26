@@ -13,8 +13,11 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import javax.xml.crypto.Data;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 
 public class WitherController extends FlyingMobController<Wither> {
+    static Field idleHeadUpdateField;
     static int NUM_SKULLS_UNTIL_BLUE = 3;
     static ItemStack WITHER_SKULL_HEAD;
     static ItemStack WITHER_SKULL_BLUE_HEAD;
@@ -22,6 +25,12 @@ public class WitherController extends FlyingMobController<Wither> {
     static {
         WITHER_SKULL_HEAD = Util.createSkull("https://textures.minecraft.net/texture/1e4d204ebc242eca2148f5853e3af00f84f0d674099dc394f6d2924b240ca2e3");
         WITHER_SKULL_BLUE_HEAD = Util.createSkull("http://textures.minecraft.net/texture/5169c90c8874ab575b201b616a69eac7e0b5ac69bbcccbb2772e36776fe69441");
+        try {
+            idleHeadUpdateField = net.minecraft.world.entity.boss.wither.WitherBoss.class.getDeclaredField("idleHeadUpdates");
+            idleHeadUpdateField.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public WitherController(Wither entity) {
@@ -44,6 +53,7 @@ public class WitherController extends FlyingMobController<Wither> {
         entity.setTarget(Wither.Head.CENTER, null);
         entity.setTarget(Wither.Head.LEFT, null);
         entity.setTarget(Wither.Head.RIGHT, null);
+        resetRandomHeadIdleCounter();
     }
 
     public Location getHeadLocation(int head) {
@@ -60,6 +70,20 @@ public class WitherController extends FlyingMobController<Wither> {
         z += Math.sin(headAngle) * 1.3 * scale;
 
         return new Location(entity.getWorld(), x, y, z);
+    }
+
+    protected void resetRandomHeadIdleCounter() {
+        CraftWither craftWither = (CraftWither) entity;
+
+        try {
+            Object array = idleHeadUpdateField.get(craftWither.getHandle());
+
+            Array.set(array, 0, 0);
+            Array.set(array, 1, 0);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     protected void shootSkull(int head, Location targetLocation, boolean blueSkull) {
@@ -123,17 +147,19 @@ public class WitherController extends FlyingMobController<Wither> {
 
         if (!move.isZero()) {
             float speed = ((CraftWither) entity).getHandle().getSpeed();
+            Vector eyeDirection = player.getEyeLocation().getDirection();
 
             move.normalize().multiply(speed);
             entity.setVelocity(entity.getVelocity().setX(move.getX()).setZ(move.getZ()).setY(move.getY() * .6f));
-            nmsMoveControl.setWantedPosition(entity.getX() + move.getX(), entity.getY() + move.getY(), entity.getZ() + move.getZ(), 1.0);
+            nmsMoveControl.setWantedPosition(entity.getX() + eyeDirection.getX(), entity.getY(), entity.getZ() + eyeDirection.getZ(), 1.0);
         }
         else
             nmsMoveControl.setWait();
     }
 
     @Override
-    public void onMoveControllerPostTick() {
-
+    public void tick() {
+        super.tick();
+        resetRandomHeadIdleCounter();
     }
 }
