@@ -2,10 +2,10 @@ package com.gmail.blubberalls.minigames;
 
 import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.MobPilot.MobPilot;
-import io.papermc.paper.event.player.PlayerPickEntityEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class BlubMinigames extends JavaPlugin implements Listener {
@@ -28,11 +28,11 @@ public class BlubMinigames extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onPickEntity(PlayerPickEntityEvent event) {
+    public void onRightClickEntity(PlayerInteractEntityEvent event) {
         if (MobPilot.hasController(event.getPlayer()))
             return;
 
-        MobController<?> controller = MobPilot.createController(event.getEntity());
+        MobController<?> controller = MobPilot.createController(event.getRightClicked());
 
         if (controller == null)
             return;

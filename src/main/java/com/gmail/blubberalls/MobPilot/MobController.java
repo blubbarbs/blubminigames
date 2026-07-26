@@ -31,6 +31,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -97,6 +99,8 @@ public class MobController<T extends Mob> implements Listener {
     protected boolean isImmobile = false;
     protected boolean canStrafe = true;
     protected boolean canJump = true;
+    protected boolean syncRotation = true;
+    protected Collection<Integer> activeTasks = new HashSet<>();
 
     protected MoveControlWrapper nmsMoveControl;
     protected LookControlWrapper nmsLookControl;
@@ -141,6 +145,10 @@ public class MobController<T extends Mob> implements Listener {
 
     public void setCanJump(boolean canJump) {
         this.canJump = canJump;
+    }
+
+    public void setSyncRotation(boolean syncRotation) {
+        this.syncRotation = syncRotation;
     }
 
     public void setPilot(Player player) {
@@ -217,6 +225,7 @@ public class MobController<T extends Mob> implements Listener {
 
         HandlerList.unregisterAll(this);
         Bukkit.getScheduler().cancelTask(tickSchedulerID);
+        activeTasks.forEach((taskID) -> Bukkit.getScheduler().cancelTask(taskID));
 
         player.getInventory().setContents(playerInventory);
 
@@ -301,6 +310,39 @@ public class MobController<T extends Mob> implements Listener {
         registerAbility(name, icon, callback, cooldownSeconds, false);
     }
 
+    protected BukkitTask registerRunnable(Runnable runnable, long tickDelay) {
+        BukkitRunnable bukkitRunnable = new BukkitRunnable() {
+            @Override
+            public void run() {
+                runnable.run();
+                activeTasks.remove(this.getTaskId());
+            }
+        };
+
+        BukkitTask task = bukkitRunnable.runTaskLater(BlubMinigames.getInstance(), tickDelay);
+        activeTasks.add(task.getTaskId());
+
+        return task;
+    }
+
+    protected BukkitTask registerRunnableRepeating(Runnable runnable, long tickDelay, long period) {
+        BukkitRunnable bukkitRunnable = new BukkitRunnable() {
+            @Override
+            public void run() {
+                runnable.run();
+                activeTasks.remove(this.getTaskId());
+            }
+        };
+
+        BukkitTask task = bukkitRunnable.runTaskTimer(BlubMinigames.getInstance(), tickDelay, period);
+        activeTasks.add(task.getTaskId());
+
+        return task;
+    }
+
+    protected BukkitTask registerRunnableRepeating(Runnable runnable, long period) {
+        return registerRunnableRepeating(runnable, 0L, period);
+    }
 
     protected void initializePlayerEquipment() {
         player.getInventory().setItem(HELD_ITEM_HOTKEY, entity.getEquipment().getItemInMainHand());
@@ -328,7 +370,8 @@ public class MobController<T extends Mob> implements Listener {
     }
 
     protected void tick() {
-        entity.setRotation(player.getYaw(), player.getPitch() - 25);
+        if (syncRotation)
+            entity.setRotation(player.getYaw(), player.getPitch() - 25);
 
         if (player.hasActiveItem()) {
             if (player.getActiveItemUsedTime() == 0) {
