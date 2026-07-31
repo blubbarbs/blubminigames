@@ -27,7 +27,7 @@ public class MobPilot implements Listener {
         register(Stray.class, SkeletonController::new);
         register(Bogged.class, SkeletonController::new);
         register(Parched.class, SkeletonController::new);
-        register(Spider.class, (spider) -> new MobController<>(spider, .15, MobController.Capability.ATTACK));
+        register(Spider.class, (spider) -> new MobController<>(spider).setScale(.15f).setCanAttack(true) );
         register(Enderman.class, EndermanController::new);
         register(IronGolem.class, IronGolemController::new);
         register(Warden.class, WardenController::new);
@@ -42,6 +42,8 @@ public class MobPilot implements Listener {
         register(Squid.class, SquidController::new);
         register(GlowSquid.class, SquidController::new);
         register(Illusioner.class, IllusionerController::new);
+        register(Armadillo.class, ArmadilloController::new);
+        register(Bat.class, BatController::new);
     }
 
     private static <T extends Entity> void register(Class<T> clazz, Function<T, MobController<? super T>> controllerFactory) {

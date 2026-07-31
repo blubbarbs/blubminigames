@@ -20,7 +20,8 @@ public class WardenController extends MobController<Warden> {
     protected int sonicBoomScheduleID = -1;
 
     public WardenController(Warden mob) {
-        super(mob, Capability.ATTACK);
+        super(mob);
+        setCanAttack(true);
         registerAbility("Sonic Boom", ItemStack.of(Material.ECHO_SHARD), this::launchSonicBoom, 10);
     }
 

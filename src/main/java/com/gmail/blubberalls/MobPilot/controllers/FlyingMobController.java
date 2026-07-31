@@ -7,7 +7,7 @@ import org.bukkit.entity.Mob;
 import org.bukkit.util.Vector;
 
 public class FlyingMobController<T extends Mob> extends MobController<T> {
-    public FlyingMobController(T entity, String... capabilities) {
+    public FlyingMobController(T entity) {
         super(entity);
     }
 

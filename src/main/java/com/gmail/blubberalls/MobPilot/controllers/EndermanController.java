@@ -19,7 +19,9 @@ public class EndermanController extends MobController<Enderman> {
     private int teleportRange;
 
     public EndermanController(Enderman mob, int teleportRange) {
-        super(mob, .15, Capability.ATTACK);
+        super(mob);
+        setScale(.15f);
+        setCanAttack(true);
         this.teleportRange = teleportRange;
         registerAbility("Teleport", ItemStack.of(Material.ENDER_PEARL), this::teleport, 1);
     }

@@ -36,7 +36,8 @@ public class BlazeController extends MobController<Blaze> {
     private Random random = new Random();
 
     public BlazeController(Blaze mob) {
-        super(mob, Capability.ATTACK);
+        super(mob);
+        setCanAttack(true);
         registerAbility("Shoot Fireballs", ItemStack.of(Material.FIRE_CHARGE), this::shootAbility, 5);
     }
 

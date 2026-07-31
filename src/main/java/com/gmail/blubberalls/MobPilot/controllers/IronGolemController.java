@@ -10,7 +10,8 @@ import org.bukkit.inventory.ItemStack;
 
 public class IronGolemController extends MobController<IronGolem> {
     public IronGolemController(IronGolem mob) {
-        super(mob, Capability.ATTACK);
+        super(mob);
+        setCanAttack(true);
     }
 
     @Override

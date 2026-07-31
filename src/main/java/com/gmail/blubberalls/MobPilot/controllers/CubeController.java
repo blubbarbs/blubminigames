@@ -2,6 +2,7 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.MobPilot.nms.MoveControlOperation;
+import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.AbstractCubeMob;
 
 import java.lang.reflect.Field;
@@ -26,7 +27,9 @@ public class CubeController extends MobController<AbstractCubeMob> {
     }
 
     public CubeController(AbstractCubeMob mob) {
-        super(mob, 0.0, 10.0);
+        super(mob);
+        setReach(10.0f);
+        setCanJump(false);
     }
 
     private void setJumpDelay(int jumpDelay) {
@@ -41,8 +44,12 @@ public class CubeController extends MobController<AbstractCubeMob> {
     @Override
     public void onMoveControllerPreTick() {
         try {
-            if (entity.isOnGround() && player.getCurrentInput().isJump())
-                setJumpDelay(0);
+            if (player.getCurrentInput().isJump()) {
+                if (entity.isOnGround())
+                    setJumpDelay(0);
+                else
+                    ((CraftMob) entity).getHandle().getJumpControl().jump();
+            }
 
             cubeMovementControllerYRot.setFloat(nmsMoveControl.getWrapped(), player.getYaw());
             nmsMoveControl.setOperation(MoveControlOperation.MOVE_TO);

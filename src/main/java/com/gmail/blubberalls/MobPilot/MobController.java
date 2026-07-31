@@ -67,10 +67,6 @@ public class MobController<T extends Mob> implements Listener {
         }
     }
 
-    public static class Capability {
-        public static String ATTACK = "attack";
-    }
-
     public static PotionEffect INVISIBILITY_EFFECT = new PotionEffect(PotionEffectType.INVISIBILITY,
                                                         PotionEffect.INFINITE_DURATION, 1, false, false, false);
     public static ItemStack HELD_ITEM = ItemStack.of(Material.BREEZE_ROD);
@@ -90,17 +86,17 @@ public class MobController<T extends Mob> implements Listener {
     protected ItemStack[] playerInventory;
     protected HashMap<Attribute, Collection<AttributeModifier>> playerAttributeModifiers = new HashMap<>();
     protected Collection<PotionEffect> playerPotionEffects;
-    protected AttributeModifier scaleModifier;
-    protected AttributeModifier reachModifier;
-    protected Set<String> capabilities = new HashSet<>();
     protected T entity;
     protected ArrayList<ItemStack> abilityStacks = new ArrayList<>();
     protected HashMap<UUID, Function<ItemStack, Boolean>> abilityRunnables = new HashMap<>();
+    protected Collection<Integer> activeTasks = new HashSet<>();
     protected boolean isImmobile = false;
     protected boolean canStrafe = true;
     protected boolean canJump = true;
     protected boolean syncRotation = true;
-    protected Collection<Integer> activeTasks = new HashSet<>();
+    protected boolean canAttack = false;
+    protected AttributeModifier scaleModifier;
+    protected AttributeModifier reachModifier;
 
     protected MoveControlWrapper nmsMoveControl;
     protected LookControlWrapper nmsLookControl;
@@ -109,22 +105,12 @@ public class MobController<T extends Mob> implements Listener {
     protected InactiveGoalSelectorWrapper nmsTargetSelector = null;
     protected InactiveBrainWrapper<?> nmsBrain = null;
 
-    public MobController(T entity, double scale, double reach, String... capabilities) {
+    public MobController(T entity) {
         this.entity = entity;
-        this.capabilities.addAll(Arrays.stream(capabilities).toList());
-        scaleModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "scale_modifier"), scale - Attribute.SCALE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
-        reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
         nmsMoveControl = new MoveControlWrapper(this);
         nmsLookControl = new LookControlWrapper(this);
         nmsJumpControl = new JumpControlWrapper(this);
-    }
-
-    public MobController(T entity, double scale, String... capabilities) {
-        this(entity, scale, Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), capabilities);
-    }
-
-    public MobController(T entity, String... capabilities) {
-        this(entity, 0.0f, capabilities);
+        setScale(0.0f);
     }
 
     public T getEntity() {
@@ -135,20 +121,39 @@ public class MobController<T extends Mob> implements Listener {
         return player;
     }
 
-    public void setImmobile(boolean immobile) {
+    public MobController<T> setImmobile(boolean immobile) {
         this.isImmobile = immobile;
+        return this;
     }
 
-    public void setCanStrafe(boolean canStrafe) {
+    public MobController<T> setCanStrafe(boolean canStrafe) {
         this.canStrafe = canStrafe;
+        return this;
     }
 
-    public void setCanJump(boolean canJump) {
+    public MobController<T> setCanJump(boolean canJump) {
         this.canJump = canJump;
+        return this;
     }
 
-    public void setSyncRotation(boolean syncRotation) {
+    public MobController<T> setSyncRotation(boolean syncRotation) {
         this.syncRotation = syncRotation;
+        return this;
+    }
+
+    public MobController<T> setCanAttack(boolean canAttack) {
+        this.canAttack = canAttack;
+        return this;
+    }
+
+    public MobController<T> setScale(float scale) {
+        scaleModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "scale_modifier"), scale - Attribute.SCALE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
+        return this;
+    }
+
+    public MobController<T> setReach(float reach) {
+        reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
+        return this;
     }
 
     public void setPilot(Player player) {
@@ -169,7 +174,6 @@ public class MobController<T extends Mob> implements Listener {
 
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl);
             lookControllerField.set(craftMob.getHandle(), nmsLookControl);
-            jumpControllerField.set(craftMob.getHandle(), nmsJumpControl);
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector);
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector);
             brainField.set(craftMob.getHandle(), nmsBrain);
@@ -270,7 +274,6 @@ public class MobController<T extends Mob> implements Listener {
         try {
             moveControllerField.set(craftMob.getHandle(), nmsMoveControl.getWrapped());
             lookControllerField.set(craftMob.getHandle(), nmsLookControl.getWrapped());
-            jumpControllerField.set(craftMob.getHandle(), nmsJumpControl.getWrapped());
             goalSelectorField.set(craftMob.getHandle(), nmsGoalSelector.getWrapped());
             targetSelectorField.set(craftMob.getHandle(), nmsTargetSelector.getWrapped());
             brainField.set(craftMob.getHandle(), nmsBrain.getWrapped());
@@ -365,8 +368,12 @@ public class MobController<T extends Mob> implements Listener {
 
     protected void applyPlayerEffects() {
         player.addPotionEffect(INVISIBILITY_EFFECT);
-        player.getAttribute(Attribute.SCALE).addModifier(scaleModifier);
-        player.getAttribute(Attribute.ENTITY_INTERACTION_RANGE).addModifier(reachModifier);
+
+        if (scaleModifier != null)
+            player.getAttribute(Attribute.SCALE).addModifier(scaleModifier);
+
+        if (reachModifier != null)
+            player.getAttribute(Attribute.ENTITY_INTERACTION_RANGE).addModifier(reachModifier);
     }
 
     protected void tick() {
@@ -391,20 +398,24 @@ public class MobController<T extends Mob> implements Listener {
     }
 
     public void onMoveControllerPreTick() {
+        boolean isJumping = !isImmobile && canJump && player.getCurrentInput().isJump();
         boolean isMoving = !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
+
+        nmsMoveControl.setWait();
 
         if (isMoving)
             nmsMoveControl.strafe(player.getForwardsMovement(), player.getSidewaysMovement());
-        else
-            nmsMoveControl.setWait();
 
-        if (!isImmobile && canJump)
-            entity.setJumping(player.getCurrentInput().isJump());
+        if (isJumping && (entity.isOnGround() || entity.getPathfinder().canFloat())) {
+            nmsMoveControl.setOperation(MoveControlOperation.JUMP);
+            ((CraftMob) entity).getHandle().getJumpControl().jump();
+        }
     }
 
     public void onMoveControllerPostTick() {
         CraftMob craftMob = ((CraftMob) entity);
 
+        // Manually overwrite weird entity pathfinding that prevents movement to specific blocks in move controller
         if (!isImmobile && canStrafe) {
             craftMob.getHandle().setZza(player.getForwardsMovement());
             craftMob.getHandle().setXxa(player.getSidewaysMovement());
@@ -656,7 +667,7 @@ public class MobController<T extends Mob> implements Listener {
 
         event.setCancelled(true);
 
-        if (capabilities.contains(Capability.ATTACK) && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null) {
+        if (canAttack && this.entity.getAttribute(Attribute.ATTACK_DAMAGE) != null) {
             swingAnimation();
             this.entity.attack(event.getEntity());
         }
