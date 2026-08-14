@@ -13,8 +13,6 @@ import org.bukkit.util.Vector;
 
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Random;
 import java.util.UUID;
 
@@ -69,7 +67,7 @@ public class Util {
     public static double randomDouble(double min, double max) {
         return random.nextDouble() * (max - min) + min;
     }
-
+    
     public static ItemStack createSkull(String url) {
         UUID uuid = UUID.randomUUID();
         PlayerProfile profile = Bukkit.createProfile(uuid);

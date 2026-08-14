@@ -57,12 +57,6 @@ public class BlazeController extends MobController<Blaze> {
         return mean + spread * (random.nextDouble() - random.nextDouble());
     }
 
-    @Override
-    public void onMoveControllerPreTick() {
-        super.onMoveControllerPreTick();
-        entity.setJumping(false);
-    }
-
     protected void setBlazeOnFire(boolean fire) {
         try {
             CraftBlaze blaze = (CraftBlaze) entity;

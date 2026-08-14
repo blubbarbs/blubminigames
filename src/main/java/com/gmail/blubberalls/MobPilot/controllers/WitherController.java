@@ -1,5 +1,6 @@
 package com.gmail.blubberalls.MobPilot.controllers;
 
+import com.gmail.blubberalls.MobPilot.MobController;
 import com.gmail.blubberalls.util.Util;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import org.bukkit.Location;
@@ -12,11 +13,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import javax.xml.crypto.Data;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 
-public class WitherController extends FlyingMobController<Wither> {
+public class WitherController extends MobController<Wither> {
     static Field idleHeadUpdateField;
     static int NUM_SKULLS_UNTIL_BLUE = 3;
     static ItemStack WITHER_SKULL_HEAD;
@@ -139,7 +139,7 @@ public class WitherController extends FlyingMobController<Wither> {
     }
 
     @Override
-    public void onMoveControllerPreTick() {
+    protected void tickMove() {
         Vector move = Util.getRelativeMoveVector(player);
 
         if (player.getCurrentInput().isJump())
@@ -147,14 +147,10 @@ public class WitherController extends FlyingMobController<Wither> {
 
         if (!move.isZero()) {
             float speed = ((CraftWither) entity).getHandle().getSpeed();
-            Vector eyeDirection = player.getEyeLocation().getDirection();
 
             move.normalize().multiply(speed);
             entity.setVelocity(entity.getVelocity().setX(move.getX()).setZ(move.getZ()).setY(move.getY() * .6f));
-            nmsMoveControl.setWantedPosition(entity.getX() + eyeDirection.getX(), entity.getY(), entity.getZ() + eyeDirection.getZ(), 1.0);
         }
-        else
-            nmsMoveControl.setWait();
     }
 
     @Override

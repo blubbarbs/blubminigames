@@ -97,6 +97,7 @@ public class MobController<T extends Mob> implements Listener {
     protected boolean canAttack = false;
     protected AttributeModifier scaleModifier;
     protected AttributeModifier reachModifier;
+    protected float strafeSpeedModifier = .25f;
 
     protected MoveControlWrapper nmsMoveControl;
     protected LookControlWrapper nmsLookControl;
@@ -119,6 +120,10 @@ public class MobController<T extends Mob> implements Listener {
 
     public Player getPlayer() {
         return player;
+    }
+
+    public float getSpeed() {
+        return strafeSpeedModifier;
     }
 
     public MobController<T> setImmobile(boolean immobile) {
@@ -154,6 +159,10 @@ public class MobController<T extends Mob> implements Listener {
     public MobController<T> setReach(float reach) {
         reachModifier = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "reach_modifier"), reach - Attribute.ENTITY_INTERACTION_RANGE.getDefaultValue(), AttributeModifier.Operation.ADD_SCALAR);
         return this;
+    }
+
+    public void setSpeed(float speed) {
+        this.strafeSpeedModifier = speed;
     }
 
     public void setPilot(Player player) {
@@ -380,6 +389,9 @@ public class MobController<T extends Mob> implements Listener {
         if (syncRotation)
             entity.setRotation(player.getYaw(), player.getPitch() - 25);
 
+        tickMove();
+        tickJump();
+
         if (player.hasActiveItem()) {
             if (player.getActiveItemUsedTime() == 0) {
                 onStartUsingItem();
@@ -397,32 +409,28 @@ public class MobController<T extends Mob> implements Listener {
             removePilot();
     }
 
-    public void onMoveControllerPreTick() {
-        boolean isJumping = !isImmobile && canJump && player.getCurrentInput().isJump();
+    protected void tickMove() {
         boolean isMoving = !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
+        CraftMob mob = (CraftMob) entity;
+        float speed = (float) (entity.getAttribute(Attribute.MOVEMENT_SPEED).getValue() * strafeSpeedModifier);
 
-        nmsMoveControl.setWait();
-
-        if (isMoving)
-            nmsMoveControl.strafe(player.getForwardsMovement(), player.getSidewaysMovement());
-
-        if (isJumping && (entity.isOnGround() || entity.getPathfinder().canFloat())) {
-            nmsMoveControl.setOperation(MoveControlOperation.JUMP);
-            ((CraftMob) entity).getHandle().getJumpControl().jump();
+        if (isMoving) {
+            mob.getHandle().setSpeed(speed);
+            mob.getHandle().setZza(player.getForwardsMovement());
+            mob.getHandle().setXxa(player.getSidewaysMovement());
+        }
+        else {
+            mob.getHandle().setSpeed(0);
+            mob.getHandle().setZza(0);
+            mob.getHandle().setXxa(0);
         }
     }
 
-    public void onMoveControllerPostTick() {
-        CraftMob craftMob = ((CraftMob) entity);
+    protected void tickJump() {
+        boolean isJumping = !isImmobile && canJump && player.getCurrentInput().isJump();
 
-        // Manually overwrite weird entity pathfinding that prevents movement to specific blocks in move controller
-        if (!isImmobile && canStrafe) {
-            craftMob.getHandle().setZza(player.getForwardsMovement());
-            craftMob.getHandle().setXxa(player.getSidewaysMovement());
-        }
-        else {
-            craftMob.getHandle().setZza(0);
-            craftMob.getHandle().setXxa(0);
+        if (isJumping && (entity.isOnGround() || entity.getPathfinder().canFloat())) {
+            ((CraftMob) entity).getHandle().getJumpControl().jump();
         }
     }
 
