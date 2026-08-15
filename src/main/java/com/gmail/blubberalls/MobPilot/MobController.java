@@ -97,7 +97,6 @@ public class MobController<T extends Mob> implements Listener {
     protected boolean canAttack = false;
     protected AttributeModifier scaleModifier;
     protected AttributeModifier reachModifier;
-    protected float strafeSpeedModifier = .25f;
 
     protected MoveControlWrapper nmsMoveControl;
     protected LookControlWrapper nmsLookControl;
@@ -122,8 +121,15 @@ public class MobController<T extends Mob> implements Listener {
         return player;
     }
 
-    public float getSpeed() {
-        return strafeSpeedModifier;
+    public float getMobSpeedModifier() {
+        CraftMob craftMob = (CraftMob) entity;
+        float entitySpeed = craftMob.getHandle().getSpeed();
+
+        return (float) (entitySpeed / craftMob.getAttribute(Attribute.MOVEMENT_SPEED).getValue());
+    }
+
+    public float getMobSpeed() {
+        return ((CraftMob) entity).getHandle().getSpeed();
     }
 
     public MobController<T> setImmobile(boolean immobile) {
@@ -161,8 +167,29 @@ public class MobController<T extends Mob> implements Listener {
         return this;
     }
 
-    public void setSpeed(float speed) {
-        this.strafeSpeedModifier = speed;
+    public void setMobSpeedModifier(float speedModifier) {
+        CraftMob craftMob = (CraftMob) entity;
+        float speed = (float) (craftMob.getAttribute(Attribute.MOVEMENT_SPEED).getValue() * speedModifier);
+        float zza = entity.getForwardsMovement();
+
+        craftMob.getHandle().setSpeed(speed);
+        // Mob class sets forward strafe to speed with setSpeed method for some reason
+        craftMob.getHandle().setZza(zza);
+    }
+
+    public void setMobForwardsStrafe(float forwardsStrafe) {
+        ((CraftMob) entity).getHandle().setZza(forwardsStrafe);
+    }
+
+    public void setMobSidewaysStrafe(float sidewaysStrafe) {
+        ((CraftMob) entity).getHandle().setXxa(sidewaysStrafe);
+    }
+
+    public void setMobStrafe(float forwardsStrafe, float sidewaysStrafe) {
+        CraftMob craftMob = (CraftMob) entity;
+
+        craftMob.getHandle().setZza(forwardsStrafe);
+        craftMob.getHandle().setXxa(sidewaysStrafe);
     }
 
     public void setPilot(Player player) {
@@ -411,18 +438,15 @@ public class MobController<T extends Mob> implements Listener {
 
     protected void tickMove() {
         boolean isMoving = !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
-        CraftMob mob = (CraftMob) entity;
-        float speed = (float) (entity.getAttribute(Attribute.MOVEMENT_SPEED).getValue() * strafeSpeedModifier);
 
         if (isMoving) {
-            mob.getHandle().setSpeed(speed);
-            mob.getHandle().setZza(player.getForwardsMovement());
-            mob.getHandle().setXxa(player.getSidewaysMovement());
+            // Vanilla MoveControl uses .25 as fixed movement speed when strafing
+            setMobSpeedModifier(.25f);
+            setMobStrafe(player.getForwardsMovement(), player.getSidewaysMovement());
         }
         else {
-            mob.getHandle().setSpeed(0);
-            mob.getHandle().setZza(0);
-            mob.getHandle().setXxa(0);
+            setMobSpeedModifier(0);
+            setMobStrafe(0, 0);
         }
     }
 
@@ -430,7 +454,7 @@ public class MobController<T extends Mob> implements Listener {
         boolean isJumping = !isImmobile && canJump && player.getCurrentInput().isJump();
 
         if (isJumping && (entity.isOnGround() || entity.getPathfinder().canFloat())) {
-            ((CraftMob) entity).getHandle().getJumpControl().jump();
+            entity.setJumping(true);
         }
     }
 

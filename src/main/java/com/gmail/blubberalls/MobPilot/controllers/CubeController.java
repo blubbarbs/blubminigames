@@ -20,15 +20,15 @@ public class CubeController extends MobController<AbstractCubeMob> {
     @Override
     protected void tickJump() {
         float speedModifier = entity.isInWater() ? 1.2f : 1.0f;
-        float speed = (float) (speedModifier * entity.getAttribute(Attribute.MOVEMENT_SPEED).getValue());
 
         if (player.getCurrentInput().isJump() && (entity.isOnGround() || entity.isInWater())) {
-            ((CraftSlime) entity).getHandle().setSpeed(speed);
+            setMobSpeedModifier(speedModifier);
+            setMobForwardsStrafe(getMobSpeed());
             entity.setJumping(true);
         }
         else {
-            ((CraftSlime) entity).getHandle().setZza(0);
-            ((CraftSlime) entity).getHandle().setSpeed(0);
+            setMobForwardsStrafe(0);
+            setMobSpeedModifier(0);
             entity.setJumping(false);
         }
     }

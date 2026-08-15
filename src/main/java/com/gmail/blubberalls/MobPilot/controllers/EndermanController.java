@@ -2,8 +2,11 @@ package com.gmail.blubberalls.MobPilot.controllers;
 
 import com.destroystokyo.paper.event.entity.EndermanEscapeEvent;
 import com.gmail.blubberalls.MobPilot.MobController;
+import com.gmail.blubberalls.minigames.BlubMinigames;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
 import org.bukkit.*;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Enderman;
@@ -16,6 +19,8 @@ import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 
 public class EndermanController extends MobController<Enderman> {
+    public static AttributeModifier AGGRESSIVE_SPEED_BOOST = new AttributeModifier(new NamespacedKey(BlubMinigames.getInstance(), "enderman_speed_modifier"), .15f, AttributeModifier.Operation.ADD_NUMBER);
+
     private int teleportRange;
 
     public EndermanController(Enderman mob, int teleportRange) {
@@ -28,6 +33,14 @@ public class EndermanController extends MobController<Enderman> {
 
     public EndermanController(Enderman mob) {
         this(mob, 30);
+    }
+
+    @Override
+    public void onDeinitialize() {
+        super.onDeinitialize();
+
+        if (entity.getAttribute(Attribute.MOVEMENT_SPEED).getModifier(AGGRESSIVE_SPEED_BOOST.getKey()) != null)
+            entity.getAttribute(Attribute.MOVEMENT_SPEED).removeModifier(AGGRESSIVE_SPEED_BOOST);
     }
 
     protected boolean teleport() {
@@ -75,11 +88,13 @@ public class EndermanController extends MobController<Enderman> {
     @Override
     protected void onStartSprint() {
         entity.setScreaming(true);
+        entity.getAttribute(Attribute.MOVEMENT_SPEED).addModifier(AGGRESSIVE_SPEED_BOOST);
     }
 
     @Override
     protected void onStopSprint() {
         entity.setScreaming(false);
+        entity.getAttribute(Attribute.MOVEMENT_SPEED).removeModifier(AGGRESSIVE_SPEED_BOOST);
     }
 
     @Override
