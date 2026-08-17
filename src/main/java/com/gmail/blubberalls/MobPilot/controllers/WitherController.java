@@ -139,18 +139,30 @@ public class WitherController extends MobController<Wither> {
     }
 
     @Override
-    protected void tickMove() {
+    protected boolean shouldJump() {
+        return player.getCurrentInput().isJump();
+    }
+
+    @Override
+    protected void doMove() {
         Vector move = Util.getRelativeMoveVector(player);
+        move.multiply(.8f);
+        move.setY(entity.getVelocity().getY());
 
-        if (player.getCurrentInput().isJump())
-            move.add(new Vector(0, 1, 0));
+        entity.setVelocity(move);
+    }
 
-        if (!move.isZero()) {
-            float speed = ((CraftWither) entity).getHandle().getSpeed();
+    @Override
+    protected void doJump() {
+        Vector velocity = entity.getVelocity();
+        velocity.setY(.6f);
 
-            move.normalize().multiply(speed);
-            entity.setVelocity(entity.getVelocity().setX(move.getX()).setZ(move.getZ()).setY(move.getY() * .6f));
-        }
+        entity.setVelocity(velocity);
+    }
+
+    @Override
+    protected void stopMove() {
+        entity.setVelocity(entity.getVelocity().multiply(.9f));
     }
 
     @Override

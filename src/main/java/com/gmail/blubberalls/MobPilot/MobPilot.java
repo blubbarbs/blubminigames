@@ -3,6 +3,7 @@ package com.gmail.blubberalls.MobPilot;
 import com.gmail.blubberalls.MobPilot.command.DismountCommand;
 import com.gmail.blubberalls.MobPilot.controllers.*;
 import com.gmail.blubberalls.minigames.BlubMinigames;
+import org.bukkit.Sound;
 import org.bukkit.entity.*;
 import org.bukkit.event.Listener;
 
@@ -44,6 +45,11 @@ public class MobPilot implements Listener {
         register(Illusioner.class, IllusionerController::new);
         register(Armadillo.class, ArmadilloController::new);
         register(Bat.class, BatController::new);
+        register(Cod.class, FishController::new);
+        register(TropicalFish.class, FishController::new);
+        register(Salmon.class, FishController::new);
+        register(Guardian.class, FishController::new);
+        register(ElderGuardian.class, FishController::new);
     }
 
     private static <T extends Entity> void register(Class<T> clazz, Function<T, MobController<? super T>> controllerFactory) {
@@ -70,13 +76,10 @@ public class MobPilot implements Listener {
         return activeControllers.containsKey(player.getUniqueId());
     }
 
-    public static MobController<?> createController(Entity entity) {
-        if (controllerFactories.containsKey(entity.getType().getEntityClass())) {
-            return controllerFactories.get(entity.getType().getEntityClass()).apply(entity);
-        }
-        else if (entity instanceof Mob)
-            return new MobController<>((Mob) entity);
+    public static MobController<?> createController(Mob mob) {
+        if (controllerFactories.containsKey(mob.getType().getEntityClass()))
+            return controllerFactories.get(mob.getType().getEntityClass()).apply(mob);
         else
-            return null;
+            return new MobController<>(mob);
     }
 }

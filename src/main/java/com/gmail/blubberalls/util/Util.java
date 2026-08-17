@@ -86,4 +86,10 @@ public class Util {
 
         return head;
     }
+
+    public static float lerp(float a, float b, float alpha) {
+        float delta = b - a;
+
+        return a + (delta * alpha);
+    }
 }

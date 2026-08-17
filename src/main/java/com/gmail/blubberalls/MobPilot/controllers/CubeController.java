@@ -11,32 +11,27 @@ public class CubeController extends MobController<AbstractCubeMob> {
         super(mob);
         setReach(10.0f);
         setCanStrafe(false);
-        setSyncRotation(false);
     }
 
     @Override
-    protected void tickMove() {}
-
-    @Override
-    protected void tickJump() {
-        float speedModifier = entity.isInWater() ? 1.2f : 1.0f;
-
-        if (player.getCurrentInput().isJump() && (entity.isOnGround() || entity.isInWater())) {
-            setMobSpeedModifier(speedModifier);
-            setMobForwardsStrafe(getMobSpeed());
-            entity.setJumping(true);
-        }
-        else {
-            setMobForwardsStrafe(0);
-            setMobSpeedModifier(0);
-            entity.setJumping(false);
-        }
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
+    public void doSyncRotation() {
         entity.setRotation(player.getYaw(), entity.getPitch());
         entity.setBodyYaw(player.getYaw());
+    }
+
+    @Override
+    protected void doJump() {
+        float speedModifier = entity.isInWater() ? 1.2f : 1.0f;
+
+        setMobSpeedModifier(speedModifier);
+        setMobForwardsStrafe(getMobSpeed());
+        entity.setJumping(true);
+    }
+
+    @Override
+    protected void stopJump() {
+        setMobForwardsStrafe(0);
+        setMobSpeedModifier(0);
+        entity.setJumping(false);
     }
 }

@@ -8,12 +8,14 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseCooldown;
 import io.papermc.paper.event.entity.EntityEquipmentChangedEvent;
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
+import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.craftbukkit.entity.CraftMob;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -167,14 +169,18 @@ public class MobController<T extends Mob> implements Listener {
         return this;
     }
 
-    public void setMobSpeedModifier(float speedModifier) {
+    public void setMobSpeed(float speed) {
         CraftMob craftMob = (CraftMob) entity;
-        float speed = (float) (craftMob.getAttribute(Attribute.MOVEMENT_SPEED).getValue() * speedModifier);
         float zza = entity.getForwardsMovement();
 
         craftMob.getHandle().setSpeed(speed);
         // Mob class sets forward strafe to speed with setSpeed method for some reason
         craftMob.getHandle().setZza(zza);
+    }
+
+    public void setMobSpeedModifier(float speedModifier) {
+        float speed = (float) (entity.getAttribute(Attribute.MOVEMENT_SPEED).getValue() * speedModifier);
+        setMobSpeed(speed);
     }
 
     public void setMobForwardsStrafe(float forwardsStrafe) {
@@ -412,13 +418,19 @@ public class MobController<T extends Mob> implements Listener {
             player.getAttribute(Attribute.ENTITY_INTERACTION_RANGE).addModifier(reachModifier);
     }
 
-    protected void tick() {
-        if (syncRotation)
-            entity.setRotation(player.getYaw(), player.getPitch() - 25);
+    protected boolean shouldMove() {
+        return !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
+    }
 
-        tickMove();
-        tickJump();
+    protected boolean shouldJump() {
+        return !isImmobile && canJump && player.getCurrentInput().isJump() && (entity.isOnGround() || (entity.getPathfinder().canFloat() && entity.isInWater()));
+    }
 
+    protected void doSyncRotation() {
+        entity.setRotation(player.getYaw(), player.getPitch() - 25);
+    }
+
+    protected void doSyncItemUse() {
         if (player.hasActiveItem()) {
             if (player.getActiveItemUsedTime() == 0) {
                 onStartUsingItem();
@@ -431,31 +443,44 @@ public class MobController<T extends Mob> implements Listener {
             onStopUsingItem();
             itemInUse = null;
         }
+    }
+
+    protected void doMove() {
+        setMobSpeedModifier(.25f);
+        setMobStrafe(player.getForwardsMovement(), player.getSidewaysMovement());
+    }
+
+    protected void stopMove() {
+        setMobSpeedModifier(0);
+        setMobStrafe(0, 0);
+    }
+
+    protected void doJump() {
+        entity.setJumping(true);
+    }
+
+    protected void stopJump() {
+        entity.setJumping(false);
+    }
+
+    protected void tick() {
+        if (syncRotation)
+            doSyncRotation();
+
+        if (shouldMove())
+            doMove();
+        else
+            stopMove();
+
+        if (shouldJump())
+            doJump();
+        else
+            stopJump();
+
+        doSyncItemUse();
 
         if (entity.isDead() || entity.getPassengers().isEmpty())
             removePilot();
-    }
-
-    protected void tickMove() {
-        boolean isMoving = !isImmobile && canStrafe && (player.getForwardsMovement() != 0 || player.getSidewaysMovement() != 0);
-
-        if (isMoving) {
-            // Vanilla MoveControl uses .25 as fixed movement speed when strafing
-            setMobSpeedModifier(.25f);
-            setMobStrafe(player.getForwardsMovement(), player.getSidewaysMovement());
-        }
-        else {
-            setMobSpeedModifier(0);
-            setMobStrafe(0, 0);
-        }
-    }
-
-    protected void tickJump() {
-        boolean isJumping = !isImmobile && canJump && player.getCurrentInput().isJump();
-
-        if (isJumping && (entity.isOnGround() || entity.getPathfinder().canFloat())) {
-            entity.setJumping(true);
-        }
     }
 
     protected void onPlayerEquipmentChange(EquipmentSlot slot, ItemStack newItem) {
@@ -547,16 +572,6 @@ public class MobController<T extends Mob> implements Listener {
             onStartSneak();
         else if (!event.getInput().isSneak() && player.getCurrentInput().isSneak())
             onStopSneak();
-
-        float newX = event.getInput().isRight() ? 1 : 0;
-        newX -= event.getInput().isLeft() ? 1 : 0;
-        float oldX = player.getSidewaysMovement();
-        float newZ = event.getInput().isForward() ? 1 : 0;
-        newZ -= event.getInput().isBackward() ? 1 : 0;
-        float oldZ = player.getForwardsMovement();
-
-        if (newX != oldX || newZ != oldZ)
-            onMove(newZ, newX);
     }
 
     @EventHandler
@@ -686,10 +701,8 @@ public class MobController<T extends Mob> implements Listener {
 
     @EventHandler
     public void onMobTarget(EntityTargetEvent event) {
-        if (event.getEntity() != entity)
-            return;
-
-        event.setCancelled(true);
+        if (event.getEntity() == entity || event.getTarget() == player)
+            event.setCancelled(true);
     }
 
     @EventHandler
@@ -718,7 +731,7 @@ public class MobController<T extends Mob> implements Listener {
         arrow.setCritical(false);
         arrow.setShooter(entity);
         arrow.teleport(newLocation);
-        arrow.setPickupStatus(Arrow.PickupStatus.DISALLOWED);
+        arrow.setPickupStatus(Arrow.PickupStatus.CREATIVE_ONLY);
     }
 
     @EventHandler
